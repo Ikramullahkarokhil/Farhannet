@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Farhannet",
+    "slug": "Farhannet",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/splash-icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.farhanIct.farhannet"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/splash-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.farhanIct.farhannet"
+    },
+    "web": {
+      "favicon": "./assets/splash-icon.png"
+    },
+    "plugins": ["expo-router"],
+    "scheme": "Farhannet"
+  }
+}
