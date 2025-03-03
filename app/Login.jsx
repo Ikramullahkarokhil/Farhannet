@@ -15,18 +15,20 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 import { TextInput } from "react-native";
 import { Button } from "react-native-paper";
-
-const validationSchema = Yup.object().shape({
-  username: Yup.string().required("Username is required"),
-  password: Yup.string().required("Password is required"),
-});
+import { useTranslation } from "react-i18next";
 
 const Login = () => {
+  const { t } = useTranslation();
   const router = useRouter();
 
   useEffect(() => {
     setBackgroundColorAsync("#1E90FF");
   }, []);
+
+  const validationSchema = Yup.object().shape({
+    username: Yup.string().required(t("username-is-required")),
+    password: Yup.string().required(t("password-is-required")),
+  });
 
   const handleLogin = async (values, { setSubmitting, setStatus }) => {
     try {
@@ -55,8 +57,8 @@ const Login = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.innerContainer}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
+          <Text style={styles.title}>{t("welcome")}</Text>
+          <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
           <Formik
             initialValues={{ username: "", password: "" }}
             validationSchema={validationSchema}
@@ -76,7 +78,7 @@ const Login = () => {
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Username"
+                    placeholder={t("username")}
                     placeholderTextColor="rgba(255,255,255,0.8)"
                     value={values.username}
                     onChangeText={handleChange("username")}
@@ -90,7 +92,7 @@ const Login = () => {
                 <View style={styles.inputContainer}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Password"
+                    placeholder={t("password")}
                     placeholderTextColor="rgba(255,255,255,0.8)"
                     value={values.password}
                     onChangeText={handleChange("password")}
@@ -113,7 +115,7 @@ const Login = () => {
                   disabled={isSubmitting}
                   buttonColor="#1E90FF"
                 >
-                  Login
+                  {t("login")}
                 </Button>
                 <Button
                   mode="text"
@@ -122,7 +124,7 @@ const Login = () => {
                   }}
                   labelStyle={styles.forgotPassword}
                 >
-                  Forgot Password?
+                  {t("forgot-password")}
                 </Button>
               </>
             )}

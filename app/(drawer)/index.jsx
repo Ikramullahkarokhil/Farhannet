@@ -14,6 +14,7 @@ import { useNavigation, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { currentPackage, availablePackages, updates } from "../../data";
+import { useTranslation } from "react-i18next";
 
 const colors = {
   primary: "#007AFF",
@@ -27,6 +28,8 @@ const colors = {
 
 // Reusable Full-Row Tile Component
 const FullRowTile = ({ icon, title, count, onPress, color }) => {
+  const { t } = useTranslation();
+
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -61,7 +64,7 @@ const FullRowTile = ({ icon, title, count, onPress, color }) => {
               <Text style={styles.tileTitle}>{title}</Text>
               {count !== undefined && (
                 <Text style={[styles.tileCount, { color }]}>
-                  {count} available
+                  {count} {t("available")}
                 </Text>
               )}
             </View>
@@ -82,19 +85,19 @@ const Index = () => {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const { t } = useTranslation();
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
         <Image
           source={require("../../assets/images/farhannetLogo.png")}
-          style={{ width: 150, height: 100 }}
+          style={{ width: 100, height: 60, marginLeft: 5 }}
           resizeMode="contain"
         />
       ),
       headerTitle: "",
     });
-    setBackgroundColorAsync("transparent");
   }, [navigation]);
 
   useEffect(() => {
@@ -127,7 +130,7 @@ const Index = () => {
     >
       {/* Current Plan Section (Unchanged) */}
       <View style={[styles.section, styles.glassEffect]}>
-        <Text style={styles.sectionTitle}>Current Plan</Text>
+        <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
         {currentPackage ? (
           <View style={styles.currentPackage}>
             <View style={styles.packageHeader}>
@@ -135,8 +138,8 @@ const Index = () => {
               <Feather name="zap" size={24} color={colors.primary} />
             </View>
             <Text style={styles.packageStats}>
-              {currentPackage.bandwidth} • {currentPackage.remainingDays} days
-              left
+              {currentPackage.bandwidth} • {currentPackage.remainingDays}{" "}
+              {t("days-left")}
             </Text>
             <View style={styles.progressContainer}>
               <Animated.View
@@ -156,9 +159,7 @@ const Index = () => {
               size={24}
               color={colors.textSecondary}
             />
-            <Text style={styles.emptyStateText}>
-              No active package. Choose one below!
-            </Text>
+            <Text style={styles.emptyStateText}>{t("no-active-package")}</Text>
           </View>
         )}
       </View>
@@ -167,21 +168,21 @@ const Index = () => {
       <View style={styles.tilesContainer}>
         <FullRowTile
           icon="package"
-          title="Available Packages"
+          title={t("available-pakages")}
           count={availablePackages.length}
           color="#4ECDC4"
           onPress={() => router.navigate("screens/Pakages")}
         />
         <FullRowTile
           icon="bell"
-          title="Updates"
+          title={t("updates")}
           count={updates.length}
           color="#FF9F43"
           onPress={() => router.navigate("screens/Updates")}
         />
         <FullRowTile
           icon="message-circle"
-          title="Feedback"
+          title={t("feedback")}
           color="#6C5CE7"
           onPress={() => router.navigate("screens/Feadback")}
         />
@@ -260,6 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     marginBottom: 16,
+    elevation: 5,
   },
   tileGradient: {
     padding: 20,

@@ -6,26 +6,23 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import React, { useRef, useEffect, useLayoutEffect } from "react";
-import { updates } from "../../../data";
+import React, { useRef, useEffect, useLayoutEffect, useState } from "react";
+import { updates } from "../../../data"; // Ensure this import is correct
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
+import { useTranslation } from "react-i18next";
 
 const Index = () => {
   const navigation = useNavigation();
+  const { t } = useTranslation();
+  const [expandedItems, setExpandedItems] = useState({}); // Track expanded state for each item
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Updates",
+      headerTitle: t("updates"),
     });
   }, [navigation]);
-
-  const formatDate = (dateString) => {
-    const options = { year: "numeric", month: "long", day: "numeric" };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -35,18 +32,43 @@ const Index = () => {
     }).start();
   }, [fadeAnim]);
 
+  const formatDate = (dateString) => {
+    const options = { year: "numeric", month: "long", day: "numeric" };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  const toggleExpand = (id) => {
+    setExpandedItems((prev) => ({
+      ...prev,
+      [id]: !prev[id], // Toggle expanded state for the item
+    }));
+  };
+
   const renderUpdateCard = ({ item }) => {
+    const isExpanded = expandedItems[item.id]; // Check if the item is expanded
+    const messageLines = isExpanded ? undefined : 2; // Show 2 lines if not expanded
+
     return (
       <Animated.View style={[styles.updateCard, { opacity: fadeAnim }]}>
         <View style={styles.cardHeader}>
           <Ionicons name="notifications" size={24} color="#007AFF" />
           <Text style={styles.title}>{item.title}</Text>
         </View>
-        <Text style={styles.message}>{item.message}</Text>
+        <Text
+          style={styles.message}
+          numberOfLines={messageLines} // Limit to 2 lines if not expanded
+        >
+          {item.message}
+        </Text>
         <View style={styles.footer}>
           <Text style={styles.date}>{formatDate(item.date)}</Text>
-          <TouchableOpacity style={styles.readMoreButton}>
-            <Text style={styles.readMoreText}>Read More</Text>
+          <TouchableOpacity
+            style={styles.readMoreButton}
+            onPress={() => toggleExpand(item.id)}
+          >
+            <Text style={styles.readMoreText}>
+              {isExpanded ? t("read-less") : t("read-more")}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -55,10 +77,9 @@ const Index = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Latest Updates</Text>
       <FlatList
         data={updates}
-        keyExtractor={(item, index) => index.toString()}
+        keyExtractor={(item) => item.id.toString()} // Ensure unique key
         renderItem={renderUpdateCard}
         contentContainerStyle={styles.listContent}
       />
@@ -72,6 +93,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
+    paddingTop: 10,
   },
   header: {
     fontSize: 28,

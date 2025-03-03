@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Image,
 } from "react-native";
 import { Drawer } from "expo-router/drawer";
 import {
@@ -16,8 +17,12 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useActionSheet } from "@expo/react-native-action-sheet";
+import { useTranslation } from "react-i18next";
 
-// Custom header button with animation
+// HeaderRight remains the same...
 const HeaderRight = () => {
   const navigation = useNavigation();
   const scaleValue = React.useRef(new Animated.Value(1)).current;
@@ -50,17 +55,43 @@ const HeaderRight = () => {
   );
 };
 
-// Custom drawer content with modern design
 const CustomDrawerContent = (props) => {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const { showActionSheetWithOptions } = useActionSheet();
 
-  React.useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
+  const changeLanguage = async (lng) => {
+    await i18n.changeLanguage(lng);
+    await AsyncStorage.setItem("language", lng);
+  };
+
+  const handleLanguageChange = () => {
+    const options = [t("english"), t("pashto"), t("dari")];
+    const cancelButtonIndex = 3;
+
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex,
+      },
+      (selectedIndex) => {
+        switch (selectedIndex) {
+          case 0:
+            changeLanguage("en"); // Change to English
+            break;
+          case 1:
+            changeLanguage("pa"); // Change to Pashto
+            break;
+          case 2:
+            changeLanguage("da"); // Change to Dari
+            break;
+          case cancelButtonIndex:
+            // Canceled
+            break;
+        }
+      }
+    );
+  };
 
   return (
     <LinearGradient
@@ -68,7 +99,7 @@ const CustomDrawerContent = (props) => {
       style={styles.gradientBackground}
     >
       <DrawerContentScrollView {...props}>
-        <Animated.View style={[styles.drawerHeader, { opacity: fadeAnim }]}>
+        <View style={styles.drawerHeader}>
           <View style={styles.avatarContainer}>
             <Ionicons name="person-circle" size={60} color="#007bff" />
           </View>
@@ -76,59 +107,78 @@ const CustomDrawerContent = (props) => {
             <Text style={styles.drawerHeaderText}>Ikramullah</Text>
             <Text style={styles.drawerSubText}>ikram@example.com</Text>
           </View>
-        </Animated.View>
+        </View>
 
         <View style={styles.seperator} />
 
-        <View style={styles.drawerItemsContainer}>
-          <DrawerItemList {...props} />
+        <DrawerItemList {...props} />
 
-          <View style={styles.seperator} />
+        <View style={styles.seperator} />
 
-          <DrawerItem
-            label="Language"
-            icon={({ size, color }) => (
-              <Ionicons name="language" size={size} color={color} />
-            )}
-            onPress={() => {
-              /* Add logout logic */
-            }}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        <DrawerItem
+          label={t("language")}
+          icon={({ size, color }) => (
+            <Ionicons name="language" size={size} color={color} />
+          )}
+          onPress={handleLanguageChange}
+          style={styles.languageButton}
+          labelStyle={styles.languageLabel}
+        />
 
-          <DrawerItem
-            label="About us"
-            icon={({ size, color }) => (
-              <MaterialIcons name="details" size={size} color={color} />
-            )}
-            onPress={() => {
-              /* Add logout logic */
-            }}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        {/* Use your local icon for "Contact Us" */}
+        <DrawerItem
+          label={t("contact-us")}
+          icon={({ size, color }) => (
+            <Image
+              source={require("../../assets/icons/contact-us.png")}
+              style={{ width: size, height: size, tintColor: color }}
+            />
+          )}
+          onPress={() => {
+            router.navigate("/screens/Contact");
+          }}
+          style={styles.languageButton}
+          labelStyle={styles.languageLabel}
+        />
 
-          <View style={styles.seperator} />
+        {/* Use your local icon for "About Us" */}
+        <DrawerItem
+          label={t("about-us")}
+          icon={({ size, color }) => (
+            <Image
+              source={require("../../assets/icons/about-us.png")}
+              style={{ width: size, height: size, tintColor: color }}
+            />
+          )}
+          onPress={() => {
+            router.navigate("/screens/About");
+          }}
+          style={styles.languageButton}
+          labelStyle={styles.languageLabel}
+        />
 
-          <DrawerItem
-            label="Logout"
-            icon={({ size, color }) => (
-              <Ionicons name="log-out-outline" size={size} color={color} />
-            )}
-            onPress={() => {
-              /* Add logout logic */
-            }}
-            style={styles.logoutItem}
-            labelStyle={styles.logoutLabel}
-          />
-        </View>
+        <View style={styles.seperator} />
+
+        <DrawerItem
+          label={t("logout")}
+          icon={({ size, color }) => (
+            <Ionicons name="log-out-outline" size={size} color={color} />
+          )}
+          onPress={async () => {
+            await AsyncStorage.removeItem("userSession");
+            router.replace("Login");
+          }}
+          style={styles.logoutItem}
+          labelStyle={styles.logoutLabel}
+        />
       </DrawerContentScrollView>
     </LinearGradient>
   );
 };
 
 const Layout = () => {
+  const { t } = useTranslation();
+
   const renderIcon = ({ name, focused, color, size }) => (
     <View style={styles.iconContainer}>
       <Ionicons
@@ -159,16 +209,16 @@ const Layout = () => {
       <Drawer.Screen
         name="index"
         options={{
-          title: "Home",
-          drawerLabel: "Home",
+          title: t("home"),
+          drawerLabel: t("home"),
           drawerIcon: (props) => renderIcon({ name: "home", ...props }),
         }}
       />
       <Drawer.Screen
         name="SpeedTest"
         options={{
-          title: "Speed Test",
-          drawerLabel: "Speed Test",
+          title: t("speed-test"),
+          drawerLabel: t("speed-test"),
           drawerIcon: (props) => renderIcon({ name: "speedometer", ...props }),
         }}
       />
@@ -191,7 +241,6 @@ const styles = StyleSheet.create({
   },
   drawerStyle: {
     width: 280,
-    borderLeftWidth: 0,
     elevation: 10,
   },
   drawerHeader: {
@@ -212,8 +261,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  drawerItemsContainer: {
-    // paddingHorizontal: 10,
+  seperator: {
+    borderWidth: 1,
+    borderColor: "#eee",
+    margin: 10,
   },
   drawerItem: {
     borderRadius: 10,
@@ -233,22 +284,15 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     marginHorizontal: 8,
   },
-  seperator: {
-    borderWidth: 1,
-    borderColor: "#eee",
-    margin: 10,
-  },
   logoutLabel: {
     color: "#dc3545",
     fontWeight: "500",
   },
-
   languageButton: {
     borderRadius: 10,
     marginVertical: 4,
     marginHorizontal: 8,
   },
-
   languageLabel: {
     fontWeight: "500",
   },

@@ -10,10 +10,12 @@ import React, { useRef, useEffect, useLayoutEffect } from "react";
 import { availablePackages } from "../../../data";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
+import { useTranslation } from "react-i18next";
 
 const PackageItem = ({ packages, index }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial opacity value
   const scaleAnim = useRef(new Animated.Value(0.8)).current; // Initial scale value
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Animate opacity and scale with a delay based on the index
@@ -46,7 +48,7 @@ const PackageItem = ({ packages, index }) => {
         <Text style={styles.name}>{packages.name}</Text>
         <Text style={styles.price}>
           ${packages.price}
-          <Text style={styles.month}>/mo</Text>
+          <Text style={styles.month}>/{t("month")}</Text>
         </Text>
       </View>
 
@@ -58,7 +60,9 @@ const PackageItem = ({ packages, index }) => {
 
         <View style={styles.detailItem}>
           <Ionicons name="calendar" size={18} color="#007AFF" />
-          <Text style={styles.detailText}>{packages.duration} Days</Text>
+          <Text style={styles.detailText}>
+            {packages.duration} {t("days")}
+          </Text>
         </View>
 
         <Text style={styles.description}>{packages.description}</Text>
@@ -69,10 +73,11 @@ const PackageItem = ({ packages, index }) => {
 
 const index = () => {
   const navigation = useNavigation();
+  const { t } = useTranslation();
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Our Packages",
+      headerTitle: t("our-pakages"),
     });
   }, [navigation]);
 

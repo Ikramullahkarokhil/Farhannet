@@ -114,16 +114,20 @@ export const availablePackages = [
 
 export const updates = [
   {
+    id: 1,
     title: "Network Upgrade",
-    message: "We are upgrading our network for better speed.",
+    message:
+      "We are upgrading our network for better speed We are upgrading our network for better speed We are upgrading our network for better speed We are upgrading our network for better speed We are upgrading our network for better speed We are upgrading our network for better speed We are upgrading our network for better speed.",
     date: "2023-10-01",
   },
   {
+    id: 2,
     title: "Maintenance Notice",
     message: "Scheduled maintenance on October 5th.",
     date: "2023-10-03",
   },
   {
+    id: 3,
     title: "New Packages Available",
     message: "Check out our new packages for better deals.",
     date: "2023-10-10",
