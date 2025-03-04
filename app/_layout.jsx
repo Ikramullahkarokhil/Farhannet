@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { ActivityIndicator, View, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Provider as PaperProvider } from "react-native-paper";
@@ -10,6 +10,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { setBackgroundColorAsync } from "expo-navigation-bar";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import i18next from "../locales/languageConfig";
+import * as Notifications from "expo-notifications";
+import { registerForPushNotificationsAsync } from "../notification-service";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,6 +20,35 @@ const Layout = () => {
   const { t, i18n } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const notificationListener = useRef();
+  const responseListener = useRef();
+
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener((notification) => {
+        // You can handle the notification here, e.g., update the UI
+        console.log("Notification received:", notification);
+      });
+
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data;
+        console.log("Notification response received:", data);
+
+        if (data.updateId) {
+          // navigation.navigate('UpdateDetails', { id: data.updateId });
+        }
+      });
+
+    return () => {
+      // Clean up the listeners
+      Notifications.removeNotificationSubscription(
+        notificationListener.current
+      );
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
 
   useEffect(() => {
     setBackgroundColorAsync("white");

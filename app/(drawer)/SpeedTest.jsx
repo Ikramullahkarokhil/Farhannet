@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -5,8 +6,11 @@ import {
   TouchableOpacity,
   Animated,
   ActivityIndicator,
+  Easing,
+  ScrollView,
+  SafeAreaView,
+  StatusBar,
 } from "react-native";
-import React, { useState, useRef, useEffect } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 
 const SpeedTest = () => {
@@ -14,31 +18,92 @@ const SpeedTest = () => {
   const [downloadSpeed, setDownloadSpeed] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState(0);
   const [ping, setPing] = useState(0);
+  const [showResults, setShowResults] = useState(false);
+  const [currentTest, setCurrentTest] = useState("none");
+  const [progress, setProgress] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const glowLoopRef = useRef(null);
 
   useEffect(() => {
-    return () => progressAnim.setValue(0); // Cleanup on unmount
+    return () => {
+      progressAnim.setValue(0);
+      glowAnim.setValue(0);
+      if (glowLoopRef.current) {
+        glowLoopRef.current.stop();
+      }
+    };
   }, []);
+
+  const animateButton = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
 
   const startTest = async () => {
     try {
+      animateButton();
       setIsTesting(true);
+      setShowResults(false);
       setDownloadSpeed(0);
       setUploadSpeed(0);
       setPing(0);
+      setProgress(0);
 
+      glowLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      glowLoopRef.current.start();
+
+      setCurrentTest("download");
       await testDownloadSpeed();
+      setProgress(33);
       updateProgress(33);
+
+      setCurrentTest("upload");
       await testUploadSpeed();
+      setProgress(66);
       updateProgress(66);
+
+      setCurrentTest("ping");
       await calculatePing();
+      setProgress(100);
       updateProgress(100);
+
+      setCurrentTest("none");
+      setShowResults(true);
     } catch (error) {
-      console.error("Speed test failed:", error);
-      alert("Speed test failed. Please try again.");
+      console.error("Speed test failed:", error.message);
+      alert(`Speed test failed: ${error.message}. Please try again.`);
     } finally {
       setIsTesting(false);
-      setTimeout(() => progressAnim.setValue(0), 300); // Reset animation
+      glowAnim.setValue(0);
+      if (glowLoopRef.current) {
+        glowLoopRef.current.stop();
+      }
+      setTimeout(() => progressAnim.setValue(0), 300);
     }
   };
 
@@ -46,58 +111,110 @@ const SpeedTest = () => {
     Animated.timing(progressAnim, {
       toValue: value,
       duration: 500,
+      easing: Easing.linear,
       useNativeDriver: false,
     }).start();
   };
 
-  const testDownloadSpeed = async () => {
-    const url = "http://speedtest.ftp.otenet.gr/files/test100Mb.db";
-    const startTime = Date.now();
-    try {
-      const response = await fetch(url);
-      const endTime = Date.now();
-      const fileSize = response.headers.get("content-length"); // Bytes
-      if (!fileSize) throw new Error("File size not available");
-      const timeInSeconds = (endTime - startTime) / 1000;
-      const speed = (fileSize * 8) / timeInSeconds / 1000000; // Mbps
-      setDownloadSpeed(speed);
-    } catch (error) {
-      console.error("Download speed test failed:", error);
-      setDownloadSpeed(0);
-    }
+  const testDownloadSpeed = () => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "GET",
+        "https://speed.cloudflare.com/__down?bytes=10000000",
+        true
+      );
+      xhr.responseType = "blob";
+
+      let startTime;
+      xhr.onprogress = (event) => {
+        if (event.loaded > 0 && !startTime) {
+          startTime = Date.now();
+        }
+      };
+
+      xhr.onload = () => {
+        const endTime = Date.now();
+        if (startTime) {
+          const timeTaken = (endTime - startTime) / 1000;
+          const fileSize = 10; // 10MB file
+          const downloadSpeed = (fileSize * 8) / timeTaken;
+          setDownloadSpeed(downloadSpeed.toFixed(1));
+          resolve();
+        } else {
+          reject(new Error("Download did not start"));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Download test failed: Network error"));
+      };
+
+      xhr.send();
+    });
   };
 
-  const testUploadSpeed = async () => {
-    const url = "https://webhook.site/2fc3d710-0655-4b46-80e8-57193597d480"; // Replace with your Webhook.site URL
-    const fileSize = 1000000; // 1MB
-    const dummyData = new ArrayBuffer(fileSize); // Create a dummy file
-    const startTime = Date.now();
-    try {
-      await fetch(url, {
-        method: "POST",
-        body: dummyData,
-        headers: { "Content-Type": "application/octet-stream" },
-      });
-      const endTime = Date.now();
-      const timeInSeconds = (endTime - startTime) / 1000;
-      const speed = (fileSize * 8) / timeInSeconds / 1000000; // Mbps
-      setUploadSpeed(speed);
-    } catch (error) {
-      console.error("Upload speed test failed:", error);
-      setUploadSpeed(0);
-    }
+  const testUploadSpeed = () => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "https://httpbin.org/post", true);
+      const data = "a".repeat(5 * 1024 * 1024); // 5MB of 'a' characters
+
+      let startTime;
+      xhr.upload.onprogress = (event) => {
+        if (event.loaded > 0 && !startTime) {
+          startTime = Date.now();
+        }
+        if (event.loaded === event.total) {
+          const endTime = Date.now();
+          const timeTaken = (endTime - startTime) / 1000;
+          const fileSize = event.total / (1024 * 1024); // Size in MB
+          const uploadSpeed = (fileSize * 8) / timeTaken; // Convert to Mbps
+          setUploadSpeed(uploadSpeed.toFixed(1));
+          resolve();
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error("Upload test failed: Network error"));
+      };
+
+      xhr.setRequestHeader("Content-Type", "text/plain");
+      xhr.send(data);
+    });
   };
 
   const calculatePing = async () => {
-    const url = "https://www.google.com/favicon.ico";
-    const startTime = Date.now();
-    try {
-      await fetch(url);
-      const endTime = Date.now();
-      setPing(endTime - startTime); // Milliseconds
-    } catch (error) {
-      console.error("Ping test failed:", error);
-      setPing(0);
+    const pingTimes = [];
+    const numTests = 3;
+    for (let i = 0; i < numTests; i++) {
+      const startTime = Date.now();
+      try {
+        await fetch("https://speed.cloudflare.com", { method: "HEAD" });
+        const endTime = Date.now();
+        pingTimes.push(endTime - startTime);
+      } catch (error) {
+        console.error(`Ping test ${i + 1} failed:`, error.message);
+      }
+    }
+    if (pingTimes.length > 0) {
+      const averagePing =
+        pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length;
+      setPing(Math.round(averagePing));
+    } else {
+      throw new Error("All ping tests failed");
+    }
+  };
+
+  const getSpeedQuality = (speed, type) => {
+    if (type === "download" || type === "upload") {
+      if (speed < 5) return { text: "Slow", color: "#FF3B30" };
+      if (speed < 20) return { text: "Moderate", color: "#FF9500" };
+      return { text: "Fast", color: "#34C759" };
+    } else {
+      if (speed > 100) return { text: "High", color: "#FF3B30" };
+      if (speed > 50) return { text: "Moderate", color: "#FF9500" };
+      return { text: "Low", color: "#34C759" };
     }
   };
 
@@ -106,170 +223,392 @@ const SpeedTest = () => {
     outputRange: ["0deg", "360deg"],
   });
 
+  const progressPercentInterpolation = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
+  const glowInterpolation = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 8],
+  });
+
+  const downloadQuality = getSpeedQuality(downloadSpeed, "download");
+  const uploadQuality = getSpeedQuality(uploadSpeed, "upload");
+  const pingQuality = getSpeedQuality(ping, "ping");
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Speed Test</Text>
-        <MaterialIcons name="speed" size={28} color="#007AFF" />
-      </View>
-
-      <Animated.View
-        style={[
-          styles.progressCircle,
-          { transform: [{ rotate: progressInterpolation }] },
-        ]}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
       >
-        <View style={styles.innerCircle}>
-          <Text style={styles.speedText}>
-            {isTesting ? "Testing..." : downloadSpeed.toFixed(1)}
+        <View style={styles.header}>
+          {/* <Text style={styles.title}>Speed Test</Text> */}
+          <Text style={styles.subtitle}>Check your connection speed</Text>
+        </View>
+
+        <View style={styles.progressContainer}>
+          <Animated.View
+            style={[
+              styles.progressCircle,
+              {
+                transform: [
+                  { rotate: progressInterpolation },
+                  { scale: scaleAnim },
+                ],
+                shadowRadius: glowInterpolation,
+                shadowOpacity: glowAnim,
+              },
+            ]}
+          >
+            <TouchableOpacity
+              onPress={startTest}
+              disabled={isTesting}
+              style={styles.innerCircleButton}
+              activeOpacity={0.8}
+              accessibilityLabel={
+                isTesting ? "Testing in progress" : "Start speed test"
+              }
+            >
+              <View style={styles.innerCircle}>
+                {isTesting ? (
+                  <>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.progressText}>{`${progress}%`}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.speedText}>
+                      {showResults ? downloadSpeed : ""}
+                    </Text>
+                    <Text style={styles.unitText}>
+                      {showResults ? "Mbps" : "Start Test"}
+                    </Text>
+                    {!showResults && (
+                      <MaterialIcons name="speed" size={36} color="#007AFF" />
+                    )}
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {isTesting && (
+            <View style={styles.testStatusCard}>
+              <Text style={styles.testMessage}>
+                {currentTest === "download" && "Testing Download Speed..."}
+                {currentTest === "upload" && "Testing Upload Speed..."}
+                {currentTest === "ping" && "Testing Ping..."}
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <Animated.View
+                  style={[
+                    styles.progressBar,
+                    { width: progressPercentInterpolation },
+                  ]}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+
+        {showResults && (
+          <>
+            <Text style={styles.resultsTitle}>Test Results</Text>
+            <View style={styles.resultsContainer}>
+              <View style={styles.resultCard}>
+                <View style={styles.resultIconContainer}>
+                  <MaterialIcons
+                    name="cloud-download"
+                    size={24}
+                    color="#007AFF"
+                  />
+                </View>
+                <Text style={styles.resultTitle}>Download</Text>
+                <Text style={styles.resultValue}>{downloadSpeed} Mbps</Text>
+                <View
+                  style={[
+                    styles.qualityBadge,
+                    { backgroundColor: downloadQuality.color },
+                  ]}
+                >
+                  <Text style={styles.qualityText}>{downloadQuality.text}</Text>
+                </View>
+              </View>
+
+              <View style={styles.resultCard}>
+                <View style={styles.resultIconContainer}>
+                  <MaterialIcons
+                    name="cloud-upload"
+                    size={24}
+                    color="#007AFF"
+                  />
+                </View>
+                <Text style={styles.resultTitle}>Upload</Text>
+                <Text style={styles.resultValue}>{uploadSpeed} Mbps</Text>
+                <View
+                  style={[
+                    styles.qualityBadge,
+                    { backgroundColor: uploadQuality.color },
+                  ]}
+                >
+                  <Text style={styles.qualityText}>{uploadQuality.text}</Text>
+                </View>
+              </View>
+
+              <View style={styles.resultCard}>
+                <View style={styles.resultIconContainer}>
+                  <MaterialIcons
+                    name="network-check"
+                    size={24}
+                    color="#007AFF"
+                  />
+                </View>
+                <Text style={styles.resultTitle}>Ping</Text>
+                <Text style={styles.resultValue}>{ping} ms</Text>
+                <View
+                  style={[
+                    styles.qualityBadge,
+                    { backgroundColor: pingQuality.color },
+                  ]}
+                >
+                  <Text style={styles.qualityText}>{pingQuality.text}</Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.retestButton}
+              onPress={startTest}
+              activeOpacity={0.8}
+              accessibilityLabel="Run speed test again"
+            >
+              <MaterialIcons name="refresh" size={20} color="#FFFFFF" />
+              <Text style={styles.retestButtonText}>Run Again</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>About Speed Test</Text>
+          <Text style={styles.infoText}>
+            This test measures your connection's download speed, upload speed,
+            and ping latency. Results may vary based on network conditions and
+            server load.
           </Text>
-          <Text style={styles.unitText}>{isTesting ? "" : "Mbps"}</Text>
         </View>
-      </Animated.View>
-
-      {!isTesting && (
-        <TouchableOpacity
-          style={[styles.startButton, isTesting && styles.startButtonDisabled]}
-          onPress={startTest}
-          disabled={isTesting}
-        >
-          <Text style={styles.buttonText}>Start Test</Text>
-        </TouchableOpacity>
-      )}
-
-      {isTesting && (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Testing your internet speed...</Text>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
-
-      <View style={styles.resultsContainer}>
-        <View style={styles.resultCard}>
-          <MaterialIcons name="cloud-download" size={24} color="#007AFF" />
-          <Text style={styles.resultTitle}>Download</Text>
-          <Text style={styles.resultValue}>
-            {downloadSpeed.toFixed(1)} Mbps
-          </Text>
-        </View>
-        <View style={styles.resultCard}>
-          <MaterialIcons name="cloud-upload" size={24} color="#007AFF" />
-          <Text style={styles.resultTitle}>Upload</Text>
-          <Text style={styles.resultValue}>{uploadSpeed.toFixed(1)} Mbps</Text>
-        </View>
-        <View style={styles.resultCard}>
-          <MaterialIcons name="network-check" size={24} color="#007AFF" />
-          <Text style={styles.resultTitle}>Ping</Text>
-          <Text style={styles.resultValue}>{ping} ms</Text>
-        </View>
-      </View>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
-export default SpeedTest;
-
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fd",
+    backgroundColor: "#F8F9FA",
+  },
+  contentContainer: {
     padding: 20,
+    paddingBottom: 40,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 30,
+    alignItems: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#2d3436",
+    color: "#1A1A1A",
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#6E6E73",
+  },
+  progressContainer: {
+    alignItems: "center",
+    marginBottom: 30,
   },
   progressCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 10,
-    borderColor: "#e0e0e0",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 12,
+    borderColor: "#E9ECEF",
     borderLeftColor: "#007AFF",
     borderTopColor: "#007AFF",
     justifyContent: "center",
     alignItems: "center",
-    alignSelf: "center",
-    marginVertical: 30,
+    marginVertical: 20,
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    elevation: 5,
   },
-  innerCircle: {
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: "#fff",
+  innerCircleButton: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
   },
+  innerCircle: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   speedText: {
-    fontSize: 36,
+    fontSize: 42,
     fontWeight: "bold",
-    color: "#2d3436",
+    color: "#1A1A1A",
   },
   unitText: {
-    fontSize: 16,
-    color: "#636e72",
-    marginTop: -5,
-  },
-  startButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    alignSelf: "center",
-    marginVertical: 20,
-    shadowColor: "#007AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  startButtonDisabled: {
-    backgroundColor: "#b0a9f5",
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: "white",
     fontSize: 18,
+    color: "#6E6E73",
+    marginTop: 5,
+    fontWeight: "500",
+  },
+  progressText: {
+    fontSize: 16,
+    color: "#007AFF",
     fontWeight: "600",
+    marginTop: 10,
   },
-  resultsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 30,
-  },
-  resultCard: {
-    backgroundColor: "white",
-    padding: 15,
-    borderRadius: 15,
-    alignItems: "center",
-    width: "30%",
+  testStatusCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    width: "100%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginTop: 10,
   },
-  resultTitle: {
-    color: "#636e72",
-    fontSize: 12,
-    marginVertical: 5,
-  },
-  resultValue: {
+  testMessage: {
     fontSize: 16,
+    color: "#007AFF",
     fontWeight: "600",
-    color: "#2d3436",
+    marginBottom: 10,
+    textAlign: "center",
   },
-  loadingContainer: {
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: "#E9ECEF",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    backgroundColor: "#007AFF",
+    borderRadius: 4,
+  },
+  resultsTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1A1A1A",
+    marginBottom: 15,
+    marginTop: 10,
+  },
+  resultsContainer: {
+    flexDirection: "column",
+    justifyContent: "space-between",
+    marginBottom: 25,
+  },
+  resultCard: {
+    backgroundColor: "#FFFFFF",
+    padding: 20,
+    borderRadius: 16,
     alignItems: "center",
-    marginTop: 30,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  loadingText: {
-    color: "#636e72",
+  resultIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(0, 122, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 10,
   },
+  resultTitle: {
+    color: "#6E6E73",
+    fontSize: 14,
+    marginBottom: 5,
+    fontWeight: "500",
+  },
+  resultValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 8,
+  },
+  qualityBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  qualityText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  retestButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 25,
+  },
+  retestButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  infoCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1A1A1A",
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: "#6E6E73",
+    lineHeight: 20,
+  },
 });
+
+export default SpeedTest;

@@ -65,7 +65,9 @@ const PackageItem = ({ packages, index }) => {
           </Text>
         </View>
 
-        <Text style={styles.description}>{packages.description}</Text>
+        <Text style={styles.description} numberOfLines={2}>
+          {packages.description}
+        </Text>
       </View>
     </Animated.View>
   );

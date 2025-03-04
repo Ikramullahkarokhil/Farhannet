@@ -1,3 +1,5 @@
+"use client";
+
 import {
   StyleSheet,
   Text,
@@ -7,34 +9,49 @@ import {
   Animated,
   RefreshControl,
   Image,
+  Platform,
 } from "react-native";
-import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
-import { setBackgroundColorAsync } from "expo-navigation-bar";
+import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather, MaterialIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { currentPackage, availablePackages, updates } from "../../data";
 import { useTranslation } from "react-i18next";
+import { setBackgroundColorAsync } from "expo-navigation-bar";
 
 const colors = {
   primary: "#007AFF",
-  backgroundStart: "#E0F2FE",
-  backgroundEnd: "#FFFFFF",
-  textPrimary: "#000000",
-  textSecondary: "#6C757D",
-  cardBackground: "rgba(255, 255, 255, 0.8)",
-  accent: "#34C759",
+  secondary: "#F7FAFC",
+  backgroundStart: "white",
+  backgroundEnd: "white",
+  textPrimary: "#1A202C",
+  textSecondary: "#718096",
+  cardBackground: "#FFFFFF",
+  accent: "#38B2AC",
+  danger: "#F56565",
+  success: "#48BB78",
+  warning: "#ECC94B",
+  border: "#E2E8F0",
+  progressBg: "#EDF2F7",
 };
 
 // Reusable Full-Row Tile Component
 const FullRowTile = ({ icon, title, count, onPress, color }) => {
   const { t } = useTranslation();
-
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.96,
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 40,
       useNativeDriver: true,
     }).start();
   };
@@ -42,39 +59,37 @@ const FullRowTile = ({ icon, title, count, onPress, color }) => {
   return (
     <TouchableOpacity
       onPressIn={handlePressIn}
-      onPressOut={() =>
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-        }).start()
-      }
+      onPressOut={handlePressOut}
       onPress={onPress}
       activeOpacity={0.9}
     >
       <Animated.View
         style={[styles.fullRowTile, { transform: [{ scale: scaleAnim }] }]}
       >
-        <LinearGradient
-          colors={["#FFFFFF", "#F8F8F8"]}
-          style={[styles.tileGradient, { borderColor: color }]}
+        <View
+          style={[
+            styles.tileContent,
+            { borderLeftColor: color, borderLeftWidth: 4 },
+          ]}
         >
-          <View style={styles.tileHeader}>
-            <Feather name={icon} size={28} color={color} />
-            <View style={styles.tileContent}>
-              <Text style={styles.tileTitle}>{title}</Text>
-              {count !== undefined && (
-                <Text style={[styles.tileCount, { color }]}>
-                  {count} {t("available")}
-                </Text>
-              )}
-            </View>
-            <Feather
-              name="chevron-right"
-              size={24}
-              color={colors.textSecondary}
-            />
+          <View style={styles.tileIconContainer}>
+            <Feather name={icon} size={22} color={color} />
           </View>
-        </LinearGradient>
+          <View style={styles.tileTextContent}>
+            <Text style={styles.tileTitle}>{title}</Text>
+            {count !== undefined && (
+              <Text style={styles.tileCount}>
+                {count}{" "}
+                <Text style={styles.tileCountLabel}>{t("available")}</Text>
+              </Text>
+            )}
+          </View>
+          <Feather
+            name="chevron-right"
+            size={20}
+            color={colors.textSecondary}
+          />
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -92,12 +107,19 @@ const Index = () => {
       headerLeft: () => (
         <Image
           source={require("../../assets/images/farhannetLogo.png")}
-          style={{ width: 100, height: 60, marginLeft: 5 }}
+          style={{ width: 100, height: 70, marginLeft: 6 }}
           resizeMode="contain"
         />
       ),
       headerTitle: "",
+      headerStyle: {
+        backgroundColor: colors.backgroundStart,
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 0,
+      },
     });
+    setBackgroundColorAsync("white");
   }, [navigation]);
 
   useEffect(() => {
@@ -106,10 +128,10 @@ const Index = () => {
       toValue:
         (currentPackage.totalDuration - currentPackage.remainingDays) /
         currentPackage.totalDuration,
-      duration: 1000,
+      duration: 1200,
       useNativeDriver: false,
     }).start();
-  }, []);
+  }, [progressAnim]); // Removed currentPackage from dependencies
 
   const progressInterpolate = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -122,96 +144,124 @@ const Index = () => {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
+    <LinearGradient
+      colors={[colors.backgroundStart, colors.backgroundEnd]}
+      style={styles.container}
     >
-      {/* Current Plan Section (Unchanged) */}
-      <View style={[styles.section, styles.glassEffect]}>
-        <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
-        {currentPackage ? (
-          <View style={styles.currentPackage}>
-            <View style={styles.packageHeader}>
-              <Text style={styles.packageName}>{currentPackage.name}</Text>
-              <Feather name="zap" size={24} color={colors.primary} />
-            </View>
-            <Text style={styles.packageStats}>
-              {currentPackage.bandwidth} • {currentPackage.remainingDays}{" "}
-              {t("days-left")}
-            </Text>
-            <View style={styles.progressContainer}>
-              <Animated.View
-                style={[styles.progressBar, { width: progressInterpolate }]}
-              />
-            </View>
-            {currentPackage.remainingDays < 7 && (
-              <TouchableOpacity style={styles.renewButton}>
-                <Text style={styles.renewButtonText}>Renew Now</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Feather
-              name="alert-circle"
-              size={24}
-              color={colors.textSecondary}
-            />
-            <Text style={styles.emptyStateText}>{t("no-active-package")}</Text>
-          </View>
-        )}
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Current Plan Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
+          {currentPackage ? (
+            <View style={styles.currentPackage}>
+              <View style={styles.packageHeader}>
+                <View>
+                  <Text style={styles.packageName}>{currentPackage.name}</Text>
+                  <Text style={styles.packageStats}>
+                    {currentPackage.bandwidth} • {currentPackage.remainingDays}{" "}
+                    {t("days-left")}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.iconBadge,
+                    { backgroundColor: `${colors.primary}15` },
+                  ]}
+                >
+                  <Feather name="zap" size={20} color={colors.primary} />
+                </View>
+              </View>
 
-      {/* Full-Row Tiles for Other Sections */}
-      <View style={styles.tilesContainer}>
-        <FullRowTile
-          icon="package"
-          title={t("available-pakages")}
-          count={availablePackages.length}
-          color="#4ECDC4"
-          onPress={() => router.navigate("screens/Pakages")}
-        />
-        <FullRowTile
-          icon="bell"
-          title={t("updates")}
-          count={updates.length}
-          color="#FF9F43"
-          onPress={() => router.navigate("screens/Updates")}
-        />
-        <FullRowTile
-          icon="message-circle"
-          title={t("feedback")}
-          color="#6C5CE7"
-          onPress={() => router.navigate("screens/Feadback")}
-        />
-      </View>
-    </ScrollView>
+              <View style={styles.progressContainer}>
+                <Animated.View
+                  style={[styles.progressBar, { width: progressInterpolate }]}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Feather
+                name="alert-circle"
+                size={24}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.emptyStateText}>
+                {t("no-active-package")}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Full-Row Tiles for Other Sections */}
+        <View style={styles.tilesContainer}>
+          <FullRowTile
+            icon="package"
+            title={t("available-pakages")}
+            count={availablePackages.length}
+            color={colors.accent}
+            onPress={() => router.navigate("screens/Pakages")}
+          />
+          <FullRowTile
+            icon="bell"
+            title={t("updates")}
+            count={updates.length}
+            color={colors.warning}
+            onPress={() => router.navigate("screens/Updates")}
+          />
+          <FullRowTile
+            icon="message-circle"
+            title={t("feedback")}
+            color={colors.primary}
+            onPress={() => router.navigate("screens/Feadback")}
+          />
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    padding: 16,
-    backgroundColor: "white",
+  container: {
     flex: 1,
   },
-  section: {
-    borderRadius: 24,
+  scrollContent: {
     padding: 20,
-    marginBottom: 16,
+    paddingTop: 10,
   },
-  glassEffect: {
+  section: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
     backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.1)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 20,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 18,
+    fontWeight: "600",
     marginBottom: 16,
+    letterSpacing: 0.2,
   },
   currentPackage: {
     marginBottom: 8,
@@ -220,71 +270,114 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   packageName: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 4,
   },
   packageStats: {
     color: colors.textSecondary,
     fontSize: 14,
-    marginBottom: 16,
+  },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
   progressContainer: {
-    height: 8,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 4,
+    height: 6,
+    backgroundColor: colors.progressBg,
+    borderRadius: 3,
     overflow: "hidden",
+    marginBottom: 16,
   },
   progressBar: {
     height: "100%",
     backgroundColor: colors.primary,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   renewButton: {
-    backgroundColor: colors.accent,
-    padding: 10,
-    borderRadius: 12,
+    backgroundColor: colors.success,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     alignItems: "center",
-    marginTop: 12,
-  },
-  renewButtonText: {
-    color: colors.textPrimary,
-    fontFamily: "Inter_600SemiBold",
-  },
-  tilesContainer: {
     marginTop: 8,
   },
-  fullRowTile: {
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 16,
-    elevation: 5,
+  renewButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 14,
   },
-  tileGradient: {
-    padding: 20,
-    borderWidth: 2,
-    borderRadius: 20,
-  },
-  tileHeader: {
+  emptyState: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  emptyStateText: {
+    color: colors.textSecondary,
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  tilesContainer: {
+    marginBottom: 20,
+  },
+  fullRowTile: {
+    borderRadius: 14,
+    marginBottom: 12,
+    backgroundColor: colors.cardBackground,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
   },
   tileContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: colors.cardBackground,
+  },
+  tileIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.secondary,
+  },
+  tileTextContent: {
     flex: 1,
     marginLeft: 16,
   },
   tileTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.textPrimary,
+    marginBottom: 2,
   },
   tileCount: {
     fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    marginTop: 4,
+    fontWeight: "500",
+    color: colors.textPrimary,
+  },
+  tileCountLabel: {
+    color: colors.textSecondary,
+    fontWeight: "400",
   },
 });
 

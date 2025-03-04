@@ -2,7 +2,7 @@ export const currentPackage = {
   name: "Basic Plan",
   bandwidth: "10mbps",
   totalDuration: 30, // in days
-  remainingDays: 10, // in days
+  remainingDays: 20, // in days
 };
 
 export const availablePackages = [
@@ -128,6 +128,12 @@ export const updates = [
   },
   {
     id: 3,
+    title: "New Packages Available",
+    message: "Check out our new packages for better deals.",
+    date: "2023-10-10",
+  },
+  {
+    id: 4,
     title: "New Packages Available",
     message: "Check out our new packages for better deals.",
     date: "2023-10-10",

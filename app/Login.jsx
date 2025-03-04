@@ -117,7 +117,7 @@ const Login = () => {
                 >
                   {t("login")}
                 </Button>
-                <Button
+                {/* <Button
                   mode="text"
                   onPress={() => {
                     // Placeholder for forgot password action
@@ -125,7 +125,7 @@ const Login = () => {
                   labelStyle={styles.forgotPassword}
                 >
                   {t("forgot-password")}
-                </Button>
+                </Button> */}
               </>
             )}
           </Formik>
