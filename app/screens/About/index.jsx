@@ -1,109 +1,295 @@
-import React, { useLayoutEffect } from "react";
+"use client";
+
+import { useLayoutEffect } from "react";
 import {
   StyleSheet,
   Text,
   View,
   Image,
-  ScrollView,
   TouchableOpacity,
+  Dimensions,
+  Platform,
+  StatusBar,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  interpolate,
+} from "react-native-reanimated";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { Link, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 
-const Index = () => {
+const { width } = Dimensions.get("window");
+const cardWidth = width * 0.85;
+
+const AboutScreen = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
+
+  // Reanimated shared values
+  const scrollY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(50);
+
+  const logoAnimatedStyle = useAnimatedStyle(() => {
+    const translateYValue = interpolate(
+      scrollY.value,
+      [0, 100],
+      [0, -20],
+      "clamp"
+    );
+
+    return {
+      transform: [{ translateY: translateYValue }],
+    };
+  });
+
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+      transform: [{ translateY: translateY.value }],
+    };
+  });
+
+  // Features data
+  const features = [
+    {
+      icon: "speed",
+      title: "Ultra-Fast Internet Speeds",
+      description:
+        "Experience lightning-fast connectivity with our premium fiber optic network.",
+    },
+    {
+      icon: "security",
+      title: "Advanced Network Security",
+      description:
+        "Your data is protected with enterprise-grade security protocols and real-time monitoring.",
+    },
+    {
+      icon: "support-agent",
+      title: "24/7 Expert Support",
+      description:
+        "Our dedicated team is always available to assist you with any technical issues.",
+    },
+    {
+      icon: "wifi",
+      title: "Reliable Connectivity",
+      description:
+        "Enjoy 99.9% uptime guarantee with our redundant network infrastructure.",
+    },
+  ];
+
+  const featureAnimatedStyles = features.map((_, index) => {
+    return useAnimatedStyle(() => {
+      return {
+        opacity: withDelay(
+          100 * index,
+          withTiming(opacity.value, { duration: 300 })
+        ),
+        transform: [
+          {
+            translateY: withDelay(
+              100 * index,
+              withTiming(translateY.value, { duration: 500 })
+            ),
+          },
+        ],
+        zIndex: 1,
+      };
+    });
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: t("about-us"),
+      headerStyle: {
+        backgroundColor: "#ffffff",
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 0,
+      },
+      headerTitleStyle: {
+        fontWeight: "600",
+        fontSize: 18,
+        color: "#333333",
+      },
     });
-  }, [navigation]);
+
+    // Start entrance animations
+    opacity.value = withTiming(1, { duration: 800 });
+    translateY.value = withTiming(0, { duration: 800 });
+  }, [navigation, opacity, translateY, t]);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.header}>
-        <Image
-          source={require("../../../assets/images/farhannetLogo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Farhanict</Text>
-        <Text style={styles.description}>
-          At Farhanict, we are dedicated to delivering high-speed, reliable, and
-          secure internet services to our customers. Our mission is to empower
-          communities with cutting-edge technology and exceptional customer
-          support.
-        </Text>
-
-        <View style={styles.featuresSection}>
-          <Text style={styles.sectionTitle}>Why Choose Farhanict?</Text>
-          <View style={styles.featureCard}>
-            <Icon name="speed" size={30} color="#4A90E2" />
-            <Text style={styles.featureText}>Ultra-Fast Internet Speeds</Text>
-          </View>
-          <View style={styles.featureCard}>
-            <Icon name="security" size={30} color="#4A90E2" />
-            <Text style={styles.featureText}>Advanced Network Security</Text>
-          </View>
-          <View style={styles.featureCard}>
-            <Icon name="support-agent" size={30} color="#4A90E2" />
-            <Text style={styles.featureText}>24/7 Expert Support</Text>
-          </View>
+      <Animated.ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.headerContainer}>
+          <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+            <Image
+              source={require("../../../assets/images/farhannetLogo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </Animated.View>
         </View>
-        <Link href={{ pathname: "/screens/Contact" }} asChild>
-          <TouchableOpacity style={styles.contactButton}>
-            <Text style={styles.buttonText}>Get in Touch</Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
-    </ScrollView>
+
+        <Animated.View style={[styles.content, contentAnimatedStyle]}>
+          <View style={styles.welcomeSection}>
+            <Text style={styles.title}>Welcome to Farhanict</Text>
+            <View style={styles.titleUnderline} />
+            <Text style={styles.description}>
+              At Farhanict, we are dedicated to delivering high-speed, reliable,
+              and secure internet services to our customers. Our mission is to
+              empower communities with cutting-edge technology and exceptional
+              customer support.
+            </Text>
+          </View>
+
+          <View style={styles.featuresSection}>
+            <Text style={styles.sectionTitle}>Why Choose Farhanict?</Text>
+
+            {features.map((feature, index) => (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.featureCardContainer,
+                  featureAnimatedStyles[index],
+                ]}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.featureCard}
+                >
+                  <View
+                    style={[
+                      styles.iconContainer,
+                      { backgroundColor: `rgba(0, 122, 255, 0.1)` },
+                    ]}
+                  >
+                    <Icon name={feature.icon} size={28} color="#007AFF" />
+                  </View>
+                  <View style={styles.featureContent}>
+                    <Text style={styles.featureTitle}>{feature.title}</Text>
+                    <Text style={styles.featureDescription}>
+                      {feature.description}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+
+          <View style={styles.valuesSection}>
+            <Text style={styles.sectionTitle}>Our Values</Text>
+            <View style={styles.valuesContainer}>
+              <View style={styles.valueItem}>
+                <Icon name="thumb-up" size={24} color="#007AFF" />
+                <Text style={styles.valueText}>Quality Service</Text>
+              </View>
+              <View style={styles.valueItem}>
+                <Icon name="lightbulb" size={24} color="#007AFF" />
+                <Text style={styles.valueText}>Innovation</Text>
+              </View>
+              <View style={styles.valueItem}>
+                <Icon name="people" size={24} color="#007AFF" />
+                <Text style={styles.valueText}>Community</Text>
+              </View>
+              <View style={styles.valueItem}>
+                <Icon name="verified-user" size={24} color="#007AFF" />
+                <Text style={styles.valueText}>Integrity</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.contactSection}>
+            <Text style={styles.contactText}>
+              Have questions or need assistance with your service?
+            </Text>
+            <Link href={{ pathname: "/screens/Contact" }} asChild>
+              <TouchableOpacity style={styles.contactButton}>
+                <Text style={styles.buttonText}>Get in Touch</Text>
+                <Icon name="arrow-forward" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </Link>
+          </View>
+        </Animated.View>
+      </Animated.ScrollView>
+    </View>
   );
 };
 
-export default Index;
+export default AboutScreen;
 
+// Styles
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   scrollContainer: {
     flexGrow: 1,
-    paddingTop: 20,
-    paddingBottom: 50,
-    paddingHorizontal: 20,
-    backgroundColor: "white",
+    paddingBottom: 40,
   },
-  header: {
+  headerContainer: {
+    height: 180,
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
     alignItems: "center",
   },
-  logo: {
-    width: 200,
-    height: 90,
-    marginBottom: 20,
+  logoContainer: {
+    alignItems: "center",
+    justifyContent: "center",
   },
-  headerText: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#2C3E50", // Dark blue for contrast
+  logo: {
+    width: 220,
+    height: 100,
   },
   content: {
+    paddingHorizontal: 20,
+  },
+  welcomeSection: {
+    marginTop: 20,
     alignItems: "center",
   },
   title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#4A90E2", // Primary blue
-    marginBottom: 15,
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#333333",
+    marginBottom: 10,
     textAlign: "center",
+  },
+  titleUnderline: {
+    width: 60,
+    height: 3,
+    backgroundColor: "#007AFF",
+    marginBottom: 20,
+    borderRadius: 2,
   },
   description: {
     fontSize: 16,
-    color: "#555555", // Soft gray for readability
+    color: "#666666",
     textAlign: "center",
     marginBottom: 30,
     lineHeight: 24,
+    letterSpacing: 0.3,
   },
   featuresSection: {
     width: "100%",
@@ -111,40 +297,119 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "bold",
-    color: "#4A90E2", // Primary blue
+    fontWeight: "700",
+    color: "#333333",
     marginBottom: 20,
     textAlign: "center",
   },
+  featureCardContainer: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   featureCard: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF", // White background for cards
+    width: cardWidth,
+    backgroundColor: "#FFFFFF",
     padding: 20,
-    borderRadius: 15,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
-  featureText: {
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureTitle: {
     fontSize: 16,
-    color: "#2C3E50", // Dark blue for text
-    marginLeft: 15,
+    fontWeight: "600",
+    color: "#333333",
+    marginBottom: 6,
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: "#666666",
+    lineHeight: 20,
+  },
+  valuesSection: {
+    marginBottom: 30,
+  },
+  valuesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginHorizontal: 10,
+  },
+  valueItem: {
+    width: "48%",
+    backgroundColor: "#F8F9FA",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  valueText: {
+    marginTop: 8,
+    fontSize: 14,
     fontWeight: "500",
+    color: "#333333",
+  },
+  contactSection: {
+    backgroundColor: "#F8F9FA",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  contactText: {
+    fontSize: 16,
+    color: "#333333",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 24,
   },
   contactButton: {
-    backgroundColor: "#4A90E2", // Primary blue
-    paddingVertical: 15,
-    paddingHorizontal: 40,
+    width: "100%",
+    maxWidth: 300,
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 30,
-    elevation: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF", // White text for contrast
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginRight: 8,
   },
 });

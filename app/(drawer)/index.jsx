@@ -1,12 +1,9 @@
-"use client";
-
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  Animated,
   RefreshControl,
   Image,
   Platform,
@@ -15,46 +12,38 @@ import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import { currentPackage, availablePackages, updates } from "../../data";
+import { updates } from "../../data";
 import { useTranslation } from "react-i18next";
 import { setBackgroundColorAsync } from "expo-navigation-bar";
-
-const colors = {
-  primary: "#007AFF",
-  secondary: "#F7FAFC",
-  backgroundStart: "white",
-  backgroundEnd: "white",
-  textPrimary: "#1A202C",
-  textSecondary: "#718096",
-  cardBackground: "#FFFFFF",
-  accent: "#38B2AC",
-  danger: "#F56565",
-  success: "#48BB78",
-  warning: "#ECC94B",
-  border: "#E2E8F0",
-  progressBg: "#EDF2F7",
-};
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+} from "react-native-reanimated";
+import apiStore from "../../components/api/apiStore";
+import { color } from "@rneui/base";
+import colors from "../../components/theme";
 
 // Reusable Full-Row Tile Component
 const FullRowTile = ({ icon, title, count, onPress, color }) => {
   const { t } = useTranslation();
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useSharedValue(1);
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start();
+    scaleAnim.value = withSpring(0.98);
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
+    scaleAnim.value = withSpring(1, { damping: 5, stiffness: 40 });
   };
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scaleAnim.value }],
+    };
+  });
 
   return (
     <TouchableOpacity
@@ -63,9 +52,7 @@ const FullRowTile = ({ icon, title, count, onPress, color }) => {
       onPress={onPress}
       activeOpacity={0.9}
     >
-      <Animated.View
-        style={[styles.fullRowTile, { transform: [{ scale: scaleAnim }] }]}
-      >
+      <Animated.View style={[styles.fullRowTile, animatedStyle]}>
         <View
           style={[
             styles.tileContent,
@@ -97,17 +84,20 @@ const FullRowTile = ({ icon, title, count, onPress, color }) => {
 
 const Index = () => {
   const navigation = useNavigation();
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useSharedValue(0);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { t } = useTranslation();
+  const { categories, activePackage } = apiStore();
+
+  const numOfCategories = categories.map((item) => item.id);
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
         <Image
           source={require("../../assets/images/farhannetLogo.png")}
-          style={{ width: 100, height: 70, marginLeft: 6 }}
+          style={{ width: 110, height: 70, marginLeft: 6 }}
           resizeMode="contain"
         />
       ),
@@ -123,19 +113,27 @@ const Index = () => {
   }, [navigation]);
 
   useEffect(() => {
-    // Progress bar animation
-    Animated.timing(progressAnim, {
-      toValue:
-        (currentPackage.totalDuration - currentPackage.remainingDays) /
-        currentPackage.totalDuration,
-      duration: 1200,
-      useNativeDriver: false,
-    }).start();
-  }, [progressAnim]); // Removed currentPackage from dependencies
+    if (activePackage) {
+      const totalDuration = Math.ceil(
+        (new Date(activePackage.expiry_date) -
+          new Date(activePackage.activation_date)) /
+          (1000 * 60 * 60 * 24)
+      );
+      const remainingDays = Math.ceil(
+        (new Date(activePackage.expiry_date) - new Date()) /
+          (1000 * 60 * 60 * 24)
+      );
+      progressAnim.value = withTiming(
+        (totalDuration - remainingDays) / totalDuration,
+        { duration: 1200 }
+      );
+    }
+  }, [activePackage]);
 
-  const progressInterpolate = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
+  const progressStyle = useAnimatedStyle(() => {
+    return {
+      width: `${interpolate(progressAnim.value, [0, 1], [0, 100])}%`,
+    };
   });
 
   const onRefresh = () => {
@@ -160,33 +158,50 @@ const Index = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Current Plan Section */}
-        <View style={styles.section}>
+        <View
+          style={[
+            styles.section,
+            activePackage.status === "Expire" && styles.expiredCard,
+          ]}
+        >
           <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
-          {currentPackage ? (
-            <View style={styles.currentPackage}>
-              <View style={styles.packageHeader}>
-                <View>
-                  <Text style={styles.packageName}>{currentPackage.name}</Text>
-                  <Text style={styles.packageStats}>
-                    {currentPackage.bandwidth} • {currentPackage.remainingDays}{" "}
-                    {t("days-left")}
-                  </Text>
+          {activePackage ? (
+            <View style={[styles.currentPackageContainer]}>
+              <View style={styles.currentPackage}>
+                <View style={styles.packageHeader}>
+                  <View>
+                    <Text style={styles.packageName} numberOfLines={2}>
+                      {activePackage.package}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.packageStats,
+                        activePackage.status === "Expire" && {
+                          color: color.danger,
+                        },
+                      ]}
+                    >
+                      {activePackage.status === "Expire"
+                        ? t("expired")
+                        : `${Math.ceil(
+                            (new Date(activePackage.expiry_date) - new Date()) /
+                              (1000 * 60 * 60 * 24)
+                          )} ${t("days-left")}`}
+                    </Text>
+                  </View>
                 </View>
-                <View
-                  style={[
-                    styles.iconBadge,
-                    { backgroundColor: `${colors.primary}15` },
-                  ]}
-                >
-                  <Feather name="zap" size={20} color={colors.primary} />
-                </View>
-              </View>
 
-              <View style={styles.progressContainer}>
-                <Animated.View
-                  style={[styles.progressBar, { width: progressInterpolate }]}
-                />
+                <View style={styles.progressContainer}>
+                  <Animated.View
+                    style={[
+                      styles.progressBar,
+                      progressStyle,
+                      activePackage.status === "Expire" && {
+                        backgroundColor: colors.danger,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
             </View>
           ) : (
@@ -208,9 +223,9 @@ const Index = () => {
           <FullRowTile
             icon="package"
             title={t("available-pakages")}
-            count={availablePackages.length}
+            count={numOfCategories.length}
             color={colors.accent}
-            onPress={() => router.navigate("screens/Pakages")}
+            onPress={() => router.navigate("screens/CategoriesList")}
           />
           <FullRowTile
             icon="bell"
@@ -258,13 +273,25 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     marginBottom: 16,
     letterSpacing: 0.2,
   },
   currentPackage: {
     marginBottom: 8,
+  },
+  currentPackageContainer: {
+    borderRadius: 16, // Match the card's border radius
+    overflow: "hidden", // Ensure the border radius is applied correctly
+  },
+  expiredCard: {
+    borderWidth: 2, // Add a border width
+    borderColor: colors.danger, // Red border color
+  },
+  expiredPackage: {
+    borderLeftColor: colors.danger, // Red border for expired package
+    borderLeftWidth: 4,
   },
   packageHeader: {
     flexDirection: "row",
@@ -274,7 +301,7 @@ const styles = StyleSheet.create({
   },
   packageName: {
     color: colors.textPrimary,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     marginBottom: 4,
   },
@@ -300,19 +327,6 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: colors.primary,
     borderRadius: 3,
-  },
-  renewButton: {
-    backgroundColor: colors.success,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  renewButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 14,
   },
   emptyState: {
     flexDirection: "row",

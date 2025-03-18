@@ -6,9 +6,13 @@ import {
   TouchableOpacity,
   Linking,
   ScrollView,
-  Animated,
   Platform,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -16,7 +20,7 @@ import { useTranslation } from "react-i18next";
 const Index = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const scaleValue = new Animated.Value(1);
+  const scaleValue = useSharedValue(1);
   const ICON_COLOR = "#007AFF";
   const DISABLED_COLOR = "#999999";
 
@@ -27,14 +31,8 @@ const Index = () => {
   }, [navigation]);
 
   const animatePress = () => {
-    Animated.spring(scaleValue, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start(() => {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        useNativeDriver: true,
-      }).start();
+    scaleValue.value = withSpring(0.98, {}, () => {
+      scaleValue.value = withSpring(1);
     });
   };
 
@@ -90,15 +88,19 @@ const Index = () => {
       .catch(() => Linking.openURL(webUrl));
   };
 
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scaleValue.value }],
+    };
+  });
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>
         {t("get-in")} <Text style={styles.highlight}>{t("touch")}</Text>
       </Text>
 
-      <Animated.View
-        style={[styles.card, { transform: [{ scale: scaleValue }] }]}
-      >
+      <Animated.View style={[styles.card, animatedStyle]}>
         <TouchableOpacity onPress={handleEmailPress} style={styles.cardContent}>
           <Ionicons name="mail" size={28} color={ICON_COLOR} />
           <View style={styles.textContainer}>
@@ -109,9 +111,7 @@ const Index = () => {
       </Animated.View>
 
       {/* Support Phone Number */}
-      <Animated.View
-        style={[styles.card, { transform: [{ scale: scaleValue }] }]}
-      >
+      <Animated.View style={[styles.card, animatedStyle]}>
         <TouchableOpacity
           onPress={() => handleCallPress("+93748170133")}
           style={styles.cardContent}
@@ -125,9 +125,7 @@ const Index = () => {
       </Animated.View>
 
       {/* WhatsApp */}
-      <Animated.View
-        style={[styles.card, { transform: [{ scale: scaleValue }] }]}
-      >
+      <Animated.View style={[styles.card, animatedStyle]}>
         <TouchableOpacity
           onPress={handleWhatsAppPress}
           style={styles.cardContent}

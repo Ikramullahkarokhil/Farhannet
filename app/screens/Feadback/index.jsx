@@ -1,3 +1,4 @@
+import React, { useLayoutEffect, useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,9 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Animated,
 } from "react-native";
-import React, { useLayoutEffect, useState, useRef, useEffect } from "react";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -21,7 +25,7 @@ const Index = () => {
   const [messages, setMessages] = useState([]);
   const navigation = useNavigation();
   const flatListRef = useRef(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useSharedValue(0);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -39,16 +43,12 @@ const Index = () => {
       },
       headerShadowVisible: false,
     });
-  }, [navigation, t]); // Added t as a dependency
+  }, [navigation, t]);
 
   useEffect(() => {
     // Fade in animation for empty state
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]); // Added fadeAnim as a dependency
+    fadeAnim.value = withTiming(1, { duration: 800 });
+  }, [fadeAnim]);
 
   const submitFeedback = () => {
     if (feedback.trim() === "") {
@@ -134,8 +134,12 @@ const Index = () => {
     );
   };
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value,
+  }));
+
   const renderEmptyState = () => (
-    <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
+    <Animated.View style={[styles.emptyContainer, animatedStyle]}>
       <View style={styles.emptyIconContainer}>
         <Ionicons
           name="chatbubble-ellipses-outline"
@@ -317,12 +321,13 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: "row",
-    padding: 12,
+    padding: 10,
     backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-    paddingBottom: Platform.OS === "ios" ? 36 : 40,
+    // paddingBottom: 40,
     alignItems: "center",
+    position: "absolute",
+    bottom: 0,
+    elevation: 5,
   },
   input: {
     flex: 1,

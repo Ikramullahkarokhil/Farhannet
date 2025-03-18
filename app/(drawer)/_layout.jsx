@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Image,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Drawer } from "expo-router/drawer";
 import {
   DrawerContentScrollView,
@@ -16,29 +9,35 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActionSheet } from "@expo/react-native-action-sheet";
 import { useTranslation } from "react-i18next";
+// Import Reanimated 3
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
+import apiStore from "../../components/api/apiStore";
 
-// HeaderRight remains the same...
+// HeaderRight with Reanimated 3
 const HeaderRight = () => {
   const navigation = useNavigation();
-  const scaleValue = React.useRef(new Animated.Value(1)).current;
+  const scaleValue = useSharedValue(1); // Reanimated shared value
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scaleValue.value }],
+    };
+  });
 
   const onPressIn = () => {
-    Animated.spring(scaleValue, {
-      toValue: 0.9,
-      useNativeDriver: true,
-    }).start();
+    scaleValue.value = withSpring(0.9); // Animate to 0.9 on press in
   };
 
   const onPressOut = () => {
-    Animated.spring(scaleValue, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
+    scaleValue.value = withSpring(1); // Animate back to 1 on press out
     navigation.toggleDrawer();
   };
 
@@ -48,7 +47,7 @@ const HeaderRight = () => {
       onPressOut={onPressOut}
       style={styles.headerButton}
     >
-      <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+      <Animated.View style={animatedStyle}>
         <Ionicons name="menu" size={28} color="#333" />
       </Animated.View>
     </TouchableOpacity>
@@ -59,10 +58,17 @@ const CustomDrawerContent = (props) => {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const { showActionSheetWithOptions } = useActionSheet();
+  const { user, logout } = apiStore();
 
   const changeLanguage = async (lng) => {
     await i18n.changeLanguage(lng);
     await AsyncStorage.setItem("language", lng);
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem("userSession");
+    router.replace("Login");
+    await logout();
   };
 
   const handleLanguageChange = () => {
@@ -104,9 +110,18 @@ const CustomDrawerContent = (props) => {
             <Ionicons name="person-circle" size={60} color="#007bff" />
           </View>
           <View>
-            <Text style={styles.drawerHeaderText}>Ikramullah</Text>
-            <Text style={styles.drawerSubText}>ikram@example.com</Text>
+            {user ? (
+              <>
+                <Text style={styles.drawerHeaderText} numberOfLines={1}>
+                  {user.first_name}
+                </Text>
+                <Text style={styles.drawerSubText}>@{user.username}</Text>
+              </>
+            ) : (
+              <Text style={styles.drawerHeaderText}>farhanict.com</Text>
+            )}
           </View>
+          {/* <Text style={styles.drawerHeaderText}>{user.username}</Text> */}
         </View>
 
         <View style={styles.seperator} />
@@ -164,10 +179,7 @@ const CustomDrawerContent = (props) => {
           icon={({ size, color }) => (
             <Ionicons name="log-out-outline" size={size} color={color} />
           )}
-          onPress={async () => {
-            await AsyncStorage.removeItem("userSession");
-            router.replace("Login");
-          }}
+          onPress={handleLogout}
           style={styles.logoutItem}
           labelStyle={styles.logoutLabel}
         />
@@ -253,9 +265,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   drawerHeaderText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "600",
     color: "#333",
+    width: "90%",
+    paddingTop: 5,
   },
   drawerSubText: {
     fontSize: 14,

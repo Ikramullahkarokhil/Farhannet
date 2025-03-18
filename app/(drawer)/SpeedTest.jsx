@@ -4,14 +4,20 @@ import {
   Text,
   View,
   TouchableOpacity,
-  Animated,
   ActivityIndicator,
-  Easing,
   ScrollView,
   SafeAreaView,
   StatusBar,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withRepeat,
+  Easing,
+} from "react-native-reanimated";
 
 const SpeedTest = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -21,34 +27,28 @@ const SpeedTest = () => {
   const [showResults, setShowResults] = useState(false);
   const [currentTest, setCurrentTest] = useState("none");
   const [progress, setProgress] = useState(0);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Reanimated shared values
+  const progressAnim = useSharedValue(0);
+  const glowAnim = useSharedValue(0);
+  const scaleAnim = useSharedValue(1);
   const glowLoopRef = useRef(null);
 
   useEffect(() => {
     return () => {
-      progressAnim.setValue(0);
-      glowAnim.setValue(0);
+      progressAnim.value = 0;
+      glowAnim.value = 0;
       if (glowLoopRef.current) {
-        glowLoopRef.current.stop();
+        glowLoopRef.current(); // Cancel the loop
       }
     };
   }, []);
 
   const animateButton = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: false,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: false,
-      }),
-    ]).start();
+    scaleAnim.value = withSequence(
+      withTiming(0.95, { duration: 100 }),
+      withTiming(1, { duration: 100 })
+    );
   };
 
   const startTest = async () => {
@@ -61,21 +61,16 @@ const SpeedTest = () => {
       setPing(0);
       setProgress(0);
 
-      glowLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: false,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 800,
-            useNativeDriver: false,
-          }),
-        ])
+      // Start glow animation loop
+      glowAnim.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 800 }),
+          withTiming(0, { duration: 800 })
+        ),
+        -1, // Infinite loop
+        true // Reverse
       );
-      glowLoopRef.current.start();
+      glowLoopRef.current = () => (glowAnim.value = 0); // Store cancel function
 
       setCurrentTest("download");
       await testDownloadSpeed();
@@ -99,21 +94,19 @@ const SpeedTest = () => {
       alert(`Speed test failed: ${error.message}. Please try again.`);
     } finally {
       setIsTesting(false);
-      glowAnim.setValue(0);
+      glowAnim.value = 0; // Stop glow
       if (glowLoopRef.current) {
-        glowLoopRef.current.stop();
+        glowLoopRef.current();
       }
-      setTimeout(() => progressAnim.setValue(0), 300);
+      setTimeout(() => (progressAnim.value = 0), 300);
     }
   };
 
   const updateProgress = (value) => {
-    Animated.timing(progressAnim, {
-      toValue: value,
+    progressAnim.value = withTiming(value, {
       duration: 500,
       easing: Easing.linear,
-      useNativeDriver: false,
-    }).start();
+    });
   };
 
   const testDownloadSpeed = () => {
@@ -121,7 +114,7 @@ const SpeedTest = () => {
       const xhr = new XMLHttpRequest();
       xhr.open(
         "GET",
-        "https://speed.cloudflare.com/__down?bytes=10000000",
+        "https://speed.cloudflare.com/__down?bytes=5000000",
         true
       );
       xhr.responseType = "blob";
@@ -206,36 +199,19 @@ const SpeedTest = () => {
     }
   };
 
-  const getSpeedQuality = (speed, type) => {
-    if (type === "download" || type === "upload") {
-      if (speed < 5) return { text: "Slow", color: "#FF3B30" };
-      if (speed < 20) return { text: "Moderate", color: "#FF9500" };
-      return { text: "Fast", color: "#34C759" };
-    } else {
-      if (speed > 100) return { text: "High", color: "#FF3B30" };
-      if (speed > 50) return { text: "Moderate", color: "#FF9500" };
-      return { text: "Low", color: "#34C759" };
-    }
-  };
+  // Animated styles
+  const progressStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${progressAnim.value * 3.6}deg` }, // 0-100 -> 0-360deg
+      { scale: scaleAnim.value },
+    ],
+    shadowRadius: glowAnim.value * 8, // 0-1 -> 0-8
+    shadowOpacity: glowAnim.value,
+  }));
 
-  const progressInterpolation = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0deg", "360deg"],
-  });
-
-  const progressPercentInterpolation = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0%", "100%"],
-  });
-
-  const glowInterpolation = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 8],
-  });
-
-  const downloadQuality = getSpeedQuality(downloadSpeed, "download");
-  const uploadQuality = getSpeedQuality(uploadSpeed, "upload");
-  const pingQuality = getSpeedQuality(ping, "ping");
+  const progressBarStyle = useAnimatedStyle(() => ({
+    width: `${progressAnim.value}%`,
+  }));
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -245,24 +221,11 @@ const SpeedTest = () => {
         contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.header}>
-          {/* <Text style={styles.title}>Speed Test</Text> */}
           <Text style={styles.subtitle}>Check your connection speed</Text>
         </View>
 
         <View style={styles.progressContainer}>
-          <Animated.View
-            style={[
-              styles.progressCircle,
-              {
-                transform: [
-                  { rotate: progressInterpolation },
-                  { scale: scaleAnim },
-                ],
-                shadowRadius: glowInterpolation,
-                shadowOpacity: glowAnim,
-              },
-            ]}
-          >
+          <Animated.View style={[styles.progressCircle, progressStyle]}>
             <TouchableOpacity
               onPress={startTest}
               disabled={isTesting}
@@ -303,12 +266,7 @@ const SpeedTest = () => {
                 {currentTest === "ping" && "Testing Ping..."}
               </Text>
               <View style={styles.progressBarContainer}>
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    { width: progressPercentInterpolation },
-                  ]}
-                />
+                <Animated.View style={[styles.progressBar, progressBarStyle]} />
               </View>
             </View>
           )}
@@ -317,7 +275,7 @@ const SpeedTest = () => {
         {showResults && (
           <>
             <Text style={styles.resultsTitle}>Test Results</Text>
-            <View style={styles.resultsContainer}>
+            <View style={styles.resultsRowContainer}>
               <View style={styles.resultCard}>
                 <View style={styles.resultIconContainer}>
                   <MaterialIcons
@@ -328,14 +286,6 @@ const SpeedTest = () => {
                 </View>
                 <Text style={styles.resultTitle}>Download</Text>
                 <Text style={styles.resultValue}>{downloadSpeed} Mbps</Text>
-                <View
-                  style={[
-                    styles.qualityBadge,
-                    { backgroundColor: downloadQuality.color },
-                  ]}
-                >
-                  <Text style={styles.qualityText}>{downloadQuality.text}</Text>
-                </View>
               </View>
 
               <View style={styles.resultCard}>
@@ -348,14 +298,6 @@ const SpeedTest = () => {
                 </View>
                 <Text style={styles.resultTitle}>Upload</Text>
                 <Text style={styles.resultValue}>{uploadSpeed} Mbps</Text>
-                <View
-                  style={[
-                    styles.qualityBadge,
-                    { backgroundColor: uploadQuality.color },
-                  ]}
-                >
-                  <Text style={styles.qualityText}>{uploadQuality.text}</Text>
-                </View>
               </View>
 
               <View style={styles.resultCard}>
@@ -368,14 +310,6 @@ const SpeedTest = () => {
                 </View>
                 <Text style={styles.resultTitle}>Ping</Text>
                 <Text style={styles.resultValue}>{ping} ms</Text>
-                <View
-                  style={[
-                    styles.qualityBadge,
-                    { backgroundColor: pingQuality.color },
-                  ]}
-                >
-                  <Text style={styles.qualityText}>{pingQuality.text}</Text>
-                </View>
               </View>
             </View>
 
@@ -421,12 +355,6 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     alignItems: "center",
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1A1A1A",
-    marginBottom: 5,
-  },
   subtitle: {
     fontSize: 16,
     color: "#6E6E73",
@@ -448,7 +376,6 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     shadowColor: "#007AFF",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
     elevation: 5,
   },
   innerCircleButton: {
@@ -524,17 +451,17 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     marginTop: 10,
   },
-  resultsContainer: {
-    flexDirection: "column",
+  resultsRowContainer: {
+    flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 25,
   },
   resultCard: {
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    padding: 15,
     borderRadius: 16,
     alignItems: "center",
-    marginBottom: 12,
+    width: "31%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -557,20 +484,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   resultValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
     color: "#1A1A1A",
-    marginBottom: 8,
-  },
-  qualityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  qualityText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
   },
   retestButton: {
     backgroundColor: "#007AFF",
