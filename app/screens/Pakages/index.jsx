@@ -17,6 +17,7 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import apiStore from "../../../components/api/apiStore";
 import SkeletonLoader from "../../../components/skeleton/PakagesSkeleton";
+import colors from "../../../components/theme";
 
 // Optimized PackageItem with memoization
 const PackageItem = memo(
@@ -51,12 +52,12 @@ const PackageItem = memo(
 
         <View style={styles.cardContent}>
           <View style={styles.detailItem}>
-            <Ionicons name="speedometer" size={18} color="#007AFF" />
+            <Ionicons name="speedometer" size={18} color={colors.accent} />
             <Text style={styles.detailText}>{packages.validity}</Text>
           </View>
 
           <View style={styles.detailItem}>
-            <Ionicons name="pricetag" size={18} color="#007AFF" />
+            <Ionicons name="pricetag" size={18} color={colors.accent} />
             <Text style={styles.detailText}>{packages.cat_title}</Text>
           </View>
 
@@ -77,7 +78,7 @@ const Index = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
   const { categoryId, catName } = useLocalSearchParams();
-  const { packagesData, categories } = apiStore();
+  const { packagesData } = apiStore();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
@@ -94,7 +95,7 @@ const Index = () => {
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerTitle: catName });
-  }, [navigation, t]);
+  }, [navigation]);
 
   const renderItem = useCallback(
     ({ item, index }) => {
@@ -122,7 +123,7 @@ const Index = () => {
         windowSize={5}
         removeClippedSubviews
         getItemLayout={(data, index) => ({
-          length: 200, // Approximate height of an item
+          length: 200,
           offset: 200 * index,
           index,
         })}
@@ -140,23 +141,37 @@ const Index = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  listContent: { paddingVertical: 10, paddingHorizontal: 8, paddingBottom: 20 },
-  emptyText: { fontSize: 16, color: "#666", textAlign: "center", padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  listContent: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingBottom: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textMuted,
+    textAlign: "center",
+    padding: 20,
+  },
 
   card: {
-    backgroundColor: "white",
+    backgroundColor: colors.background,
     borderRadius: 16,
     margin: 8,
     flex: 1,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   header: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     padding: 12,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -164,22 +179,40 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "700",
-    color: "white",
+    color: colors.background,
     marginBottom: 6,
     lineHeight: 20,
   },
-  price: { fontSize: 20, fontWeight: "800", color: "white" },
-  month: { fontSize: 12, fontWeight: "500", opacity: 0.9 },
+  price: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.background,
+  },
+  month: {
+    fontSize: 12,
+    fontWeight: "500",
+    opacity: 0.9,
+  },
 
-  cardContent: { padding: 12 },
-  detailItem: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  cardContent: {
+    padding: 12,
+  },
+  detailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   detailText: {
     marginLeft: 8,
     fontSize: 14,
-    color: "#007AFF",
+    color: colors.accent,
     fontWeight: "500",
   },
-  description: { fontSize: 12, color: "#666", lineHeight: 16 },
+  description: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 16,
+  },
 });
 
 export default Index;

@@ -7,15 +7,16 @@ import {
   Animated,
 } from "react-native";
 import React, { useRef, useEffect, useLayoutEffect, useState } from "react";
-import { updates } from "../../../data"; // Ensure this import is correct
+import { updates } from "../../../data";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
+import colors from "../../../components/theme";
 
 const Index = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const [expandedItems, setExpandedItems] = useState({}); // Track expanded state for each item
+  const [expandedItems, setExpandedItems] = useState({});
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useLayoutEffect(() => {
@@ -40,24 +41,21 @@ const Index = () => {
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({
       ...prev,
-      [id]: !prev[id], // Toggle expanded state for the item
+      [id]: !prev[id],
     }));
   };
 
   const renderUpdateCard = ({ item }) => {
-    const isExpanded = expandedItems[item.id]; // Check if the item is expanded
-    const messageLines = isExpanded ? undefined : 2; // Show 2 lines if not expanded
+    const isExpanded = expandedItems[item.id];
+    const messageLines = isExpanded ? undefined : 2;
 
     return (
       <Animated.View style={[styles.updateCard, { opacity: fadeAnim }]}>
         <View style={styles.cardHeader}>
-          <Ionicons name="notifications" size={24} color="#007AFF" />
+          <Ionicons name="notifications" size={24} color={colors.primary} />
           <Text style={styles.title}>{item.title}</Text>
         </View>
-        <Text
-          style={styles.message}
-          numberOfLines={messageLines} // Limit to 2 lines if not expanded
-        >
+        <Text style={styles.message} numberOfLines={messageLines}>
           {item.message}
         </Text>
         <View style={styles.footer}>
@@ -79,7 +77,7 @@ const Index = () => {
     <View style={styles.container}>
       <FlatList
         data={updates}
-        keyExtractor={(item) => item.id.toString()} // Ensure unique key
+        keyExtractor={(item) => item.id.toString()}
         renderItem={renderUpdateCard}
         contentContainerStyle={styles.listContent}
       />
@@ -92,13 +90,13 @@ export default Index;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: colors.background,
     paddingTop: 10,
   },
   header: {
     fontSize: 28,
     fontWeight: "800",
-    color: "black",
+    color: colors.text,
     margin: 20,
     marginBottom: 10,
   },
@@ -107,11 +105,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   updateCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.background,
     borderRadius: 20,
     marginVertical: 8,
     padding: 16,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: "row",
@@ -121,12 +121,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: "black",
+    color: colors.text,
     marginLeft: 8,
   },
   message: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textMuted,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -137,11 +137,11 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 12,
-    color: "#888",
+    color: colors.textMuted,
     fontWeight: "500",
   },
   readMoreButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -149,6 +149,6 @@ const styles = StyleSheet.create({
   readMoreText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.background,
   },
 });

@@ -8,12 +8,10 @@ import {
 } from "@react-navigation/drawer";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActionSheet } from "@expo/react-native-action-sheet";
 import { useTranslation } from "react-i18next";
-// Import Reanimated 3
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,10 +19,21 @@ import Animated, {
 } from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
 
+const colors = {
+  primary: "#0066FF",
+  secondary: "#F0F4F8",
+  text: "#1A202C",
+  textMuted: "#6B7280",
+  background: "#FFFFFF",
+  accent: "#2C9E9A",
+  danger: "#E53E3E",
+  border: "#DDE4EB",
+};
+
 // HeaderRight with Reanimated 3
 const HeaderRight = () => {
   const navigation = useNavigation();
-  const scaleValue = useSharedValue(1); // Reanimated shared value
+  const scaleValue = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
@@ -33,11 +42,11 @@ const HeaderRight = () => {
   });
 
   const onPressIn = () => {
-    scaleValue.value = withSpring(0.9); // Animate to 0.9 on press in
+    scaleValue.value = withSpring(0.9);
   };
 
   const onPressOut = () => {
-    scaleValue.value = withSpring(1); // Animate back to 1 on press out
+    scaleValue.value = withSpring(1);
     navigation.toggleDrawer();
   };
 
@@ -48,7 +57,7 @@ const HeaderRight = () => {
       style={styles.headerButton}
     >
       <Animated.View style={animatedStyle}>
-        <Ionicons name="menu" size={28} color="#333" />
+        <Ionicons name="menu" size={28} color={colors.text} />
       </Animated.View>
     </TouchableOpacity>
   );
@@ -63,6 +72,10 @@ const CustomDrawerContent = (props) => {
   const changeLanguage = async (lng) => {
     await i18n.changeLanguage(lng);
     await AsyncStorage.setItem("language", lng);
+  };
+
+  const handleChangePassword = async () => {
+    router.navigate("/screens/ChangePassword");
   };
 
   const handleLogout = async () => {
@@ -83,16 +96,15 @@ const CustomDrawerContent = (props) => {
       (selectedIndex) => {
         switch (selectedIndex) {
           case 0:
-            changeLanguage("en"); // Change to English
+            changeLanguage("en");
             break;
           case 1:
-            changeLanguage("pa"); // Change to Pashto
+            changeLanguage("pa");
             break;
           case 2:
-            changeLanguage("da"); // Change to Dari
+            changeLanguage("da");
             break;
           case cancelButtonIndex:
-            // Canceled
             break;
         }
       }
@@ -100,14 +112,11 @@ const CustomDrawerContent = (props) => {
   };
 
   return (
-    <LinearGradient
-      colors={["#ffffff", "#f8f9fa"]}
-      style={styles.gradientBackground}
-    >
+    <View style={styles.drawerContainer}>
       <DrawerContentScrollView {...props}>
         <View style={styles.drawerHeader}>
           <View style={styles.avatarContainer}>
-            <Ionicons name="person-circle" size={60} color="#007bff" />
+            <Ionicons name="person-circle" size={60} color={colors.primary} />
           </View>
           <View>
             {user ? (
@@ -121,7 +130,6 @@ const CustomDrawerContent = (props) => {
               <Text style={styles.drawerHeaderText}>farhanict.com</Text>
             )}
           </View>
-          {/* <Text style={styles.drawerHeaderText}>{user.username}</Text> */}
         </View>
 
         <View style={styles.seperator} />
@@ -140,7 +148,18 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.languageLabel}
         />
 
-        {/* Use your local icon for "Contact Us" */}
+        <DrawerItem
+          label={t("change-password")}
+          icon={({ size, color }) => (
+            <Ionicons name="lock-closed-outline" size={size} color={color} />
+          )}
+          onPress={handleChangePassword}
+          style={styles.languageButton}
+          labelStyle={styles.languageLabel}
+        />
+
+        <View style={styles.seperator} />
+
         <DrawerItem
           label={t("contact-us")}
           icon={({ size, color }) => (
@@ -156,7 +175,6 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.languageLabel}
         />
 
-        {/* Use your local icon for "About Us" */}
         <DrawerItem
           label={t("about-us")}
           icon={({ size, color }) => (
@@ -172,8 +190,6 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.languageLabel}
         />
 
-        <View style={styles.seperator} />
-
         <DrawerItem
           label={t("logout")}
           icon={({ size, color }) => (
@@ -184,7 +200,7 @@ const CustomDrawerContent = (props) => {
           labelStyle={styles.logoutLabel}
         />
       </DrawerContentScrollView>
-    </LinearGradient>
+    </View>
   );
 };
 
@@ -196,7 +212,7 @@ const Layout = () => {
       <Ionicons
         name={`${name}${focused ? "" : "-outline"}`}
         size={size}
-        color={focused ? "#007bff" : color}
+        color={focused ? colors.primary : colors.textMuted}
       />
     </View>
   );
@@ -211,8 +227,8 @@ const Layout = () => {
         headerLeft: () => null,
         headerRight: () => <HeaderRight />,
         drawerStyle: styles.drawerStyle,
-        drawerActiveTintColor: "#007bff",
-        drawerInactiveTintColor: "#666",
+        drawerActiveTintColor: colors.primary,
+        drawerInactiveTintColor: colors.textMuted,
         drawerItemStyle: styles.drawerItem,
         drawerLabelStyle: styles.drawerLabel,
       }}
@@ -246,14 +262,16 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#333",
+    color: colors.text,
   },
-  gradientBackground: {
+  drawerContainer: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   drawerStyle: {
     width: 280,
     elevation: 10,
+    backgroundColor: colors.background,
   },
   drawerHeader: {
     paddingHorizontal: 5,
@@ -267,17 +285,17 @@ const styles = StyleSheet.create({
   drawerHeaderText: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#333",
+    color: colors.text,
     width: "90%",
     paddingTop: 5,
   },
   drawerSubText: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textMuted,
   },
   seperator: {
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: colors.border,
     margin: 10,
   },
   drawerItem: {
@@ -292,6 +310,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     marginLeft: -10,
+    color: colors.text,
   },
   logoutItem: {
     borderRadius: 10,
@@ -299,7 +318,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   logoutLabel: {
-    color: "#dc3545",
+    color: colors.danger,
     fontWeight: "500",
   },
   languageButton: {
@@ -309,6 +328,7 @@ const styles = StyleSheet.create({
   },
   languageLabel: {
     fontWeight: "500",
+    color: colors.text,
   },
 });
 

@@ -22,6 +22,7 @@ import Animated, {
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { Link, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
+import colors from "../../../components/theme";
 
 const { width } = Dimensions.get("window");
 const cardWidth = width * 0.85;
@@ -59,27 +60,31 @@ const AboutScreen = () => {
   const features = [
     {
       icon: "speed",
-      title: "Ultra-Fast Internet Speeds",
-      description:
-        "Experience lightning-fast connectivity with our premium fiber optic network.",
+      title: t("Ultra-Fast Internet Speeds"),
+      description: t(
+        "Experience lightning-fast connectivity with our premium fiber optic network."
+      ),
     },
     {
       icon: "security",
-      title: "Advanced Network Security",
-      description:
-        "Your data is protected with enterprise-grade security protocols and real-time monitoring.",
+      title: t("Advanced Network Security"),
+      description: t(
+        "Your data is protected with enterprise-grade security protocols and real-time monitoring."
+      ),
     },
     {
       icon: "support-agent",
-      title: "24/7 Expert Support",
-      description:
-        "Our dedicated team is always available to assist you with any technical issues.",
+      title: t("24/7 Expert Support"),
+      description: t(
+        "Our dedicated team is always available to assist you with any technical issues."
+      ),
     },
     {
       icon: "wifi",
-      title: "Reliable Connectivity",
-      description:
-        "Enjoy 99.9% uptime guarantee with our redundant network infrastructure.",
+      title: t("Reliable Connectivity"),
+      description: t(
+        "Enjoy 99.9% uptime guarantee with our redundant network infrastructure."
+      ),
     },
   ];
 
@@ -107,7 +112,7 @@ const AboutScreen = () => {
     navigation.setOptions({
       headerTitle: t("about-us"),
       headerStyle: {
-        backgroundColor: "#ffffff",
+        backgroundColor: colors.background,
         elevation: 0,
         shadowOpacity: 0,
         borderBottomWidth: 0,
@@ -115,7 +120,7 @@ const AboutScreen = () => {
       headerTitleStyle: {
         fontWeight: "600",
         fontSize: 18,
-        color: "#333333",
+        color: colors.text,
       },
     });
 
@@ -132,7 +137,7 @@ const AboutScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       <Animated.ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -152,18 +157,19 @@ const AboutScreen = () => {
 
         <Animated.View style={[styles.content, contentAnimatedStyle]}>
           <View style={styles.welcomeSection}>
-            <Text style={styles.title}>Welcome to Farhanict</Text>
+            <Text style={styles.title}>{t("Welcome to Farhanict")}</Text>
             <View style={styles.titleUnderline} />
             <Text style={styles.description}>
-              At Farhanict, we are dedicated to delivering high-speed, reliable,
-              and secure internet services to our customers. Our mission is to
-              empower communities with cutting-edge technology and exceptional
-              customer support.
+              {t(
+                "At Farhanict, we are dedicated to delivering high-speed, reliable, and secure internet services to our customers. Our mission is to empower communities with cutting-edge technology and exceptional customer support."
+              )}
             </Text>
           </View>
 
           <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Why Choose Farhanict?</Text>
+            <Text style={styles.sectionTitle}>
+              {t("Why Choose Farhanict?")}
+            </Text>
 
             {features.map((feature, index) => (
               <Animated.View
@@ -180,10 +186,14 @@ const AboutScreen = () => {
                   <View
                     style={[
                       styles.iconContainer,
-                      { backgroundColor: `rgba(0, 122, 255, 0.1)` },
+                      { backgroundColor: `${colors.primary}19` },
                     ]}
                   >
-                    <Icon name={feature.icon} size={28} color="#007AFF" />
+                    <Icon
+                      name={feature.icon}
+                      size={28}
+                      color={colors.primary}
+                    />
                   </View>
                   <View style={styles.featureContent}>
                     <Text style={styles.featureTitle}>{feature.title}</Text>
@@ -197,35 +207,39 @@ const AboutScreen = () => {
           </View>
 
           <View style={styles.valuesSection}>
-            <Text style={styles.sectionTitle}>Our Values</Text>
+            <Text style={styles.sectionTitle}>{t("our-values")}</Text>
             <View style={styles.valuesContainer}>
               <View style={styles.valueItem}>
-                <Icon name="thumb-up" size={24} color="#007AFF" />
-                <Text style={styles.valueText}>Quality Service</Text>
+                <Icon name="thumb-up" size={24} color={colors.primary} />
+                <Text style={styles.valueText}>{t("Quality Service")}</Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="lightbulb" size={24} color="#007AFF" />
-                <Text style={styles.valueText}>Innovation</Text>
+                <Icon name="lightbulb" size={24} color={colors.primary} />
+                <Text style={styles.valueText}>{t("Innovation")}</Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="people" size={24} color="#007AFF" />
-                <Text style={styles.valueText}>Community</Text>
+                <Icon name="people" size={24} color={colors.primary} />
+                <Text style={styles.valueText}>{t("community")}</Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="verified-user" size={24} color="#007AFF" />
-                <Text style={styles.valueText}>Integrity</Text>
+                <Icon name="verified-user" size={24} color={colors.primary} />
+                <Text style={styles.valueText}>{t("integrity")}</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.contactSection}>
             <Text style={styles.contactText}>
-              Have questions or need assistance with your service?
+              {t("Have questions or need assistance with your service?")}
             </Text>
             <Link href={{ pathname: "/screens/Contact" }} asChild>
               <TouchableOpacity style={styles.contactButton}>
-                <Text style={styles.buttonText}>Get in Touch</Text>
-                <Icon name="arrow-forward" size={20} color="#FFFFFF" />
+                <Text style={styles.buttonText}>{t("Get in Touch")}</Text>
+                <Icon
+                  name="arrow-forward"
+                  size={20}
+                  color={colors.background}
+                />
               </TouchableOpacity>
             </Link>
           </View>
@@ -241,7 +255,7 @@ export default AboutScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -250,7 +264,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     height: 180,
     width: "100%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -272,20 +286,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#333333",
+    color: colors.text,
     marginBottom: 10,
     textAlign: "center",
   },
   titleUnderline: {
     width: 60,
     height: 3,
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     marginBottom: 20,
     borderRadius: 2,
   },
   description: {
     fontSize: 16,
-    color: "#666666",
+    color: colors.textMuted,
     textAlign: "center",
     marginBottom: 30,
     lineHeight: 24,
@@ -298,7 +312,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#333333",
+    color: colors.text,
     marginBottom: 20,
     textAlign: "center",
   },
@@ -310,12 +324,14 @@ const styles = StyleSheet.create({
   featureCard: {
     flexDirection: "row",
     width: cardWidth,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     padding: 20,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: colors.text,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -339,12 +355,12 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333333",
+    color: colors.text,
     marginBottom: 6,
   },
   featureDescription: {
     fontSize: 14,
-    color: "#666666",
+    color: colors.textMuted,
     lineHeight: 20,
   },
   valuesSection: {
@@ -358,14 +374,14 @@ const styles = StyleSheet.create({
   },
   valueItem: {
     width: "48%",
-    backgroundColor: "#F8F9FA",
+    backgroundColor: colors.secondary,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     marginBottom: 12,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: colors.text,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -379,10 +395,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     fontWeight: "500",
-    color: "#333333",
+    color: colors.text,
   },
   contactSection: {
-    backgroundColor: "#F8F9FA",
+    backgroundColor: colors.secondary,
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
@@ -390,7 +406,7 @@ const styles = StyleSheet.create({
   },
   contactText: {
     fontSize: 16,
-    color: "#333333",
+    color: colors.text,
     textAlign: "center",
     marginBottom: 20,
     lineHeight: 24,
@@ -398,7 +414,7 @@ const styles = StyleSheet.create({
   contactButton: {
     width: "100%",
     maxWidth: 300,
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 30,
@@ -409,7 +425,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: colors.background,
     marginRight: 8,
   },
 });

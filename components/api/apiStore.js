@@ -15,6 +15,7 @@ const initialState = {
   user: {},
   categories: [],
   activePackage: {},
+  complaints: [],
   loginLoading: false,
   loginError: null,
   loading: false,
@@ -56,6 +57,35 @@ const apiStore = create(
             activePackage: response.data.packageDetails,
           });
           set({ loading: false });
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
+      fetchCustomerComplaints: async (customerId) => {
+        try {
+          set({ loading: true });
+          const response = await api.get(
+            `/customer/complaints?customer_id=${customerId}`
+          );
+          set({
+            complaints: response.data,
+          });
+          set({ loading: false });
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
+      addComplain: async ({ customerId, complain }) => {
+        try {
+          set({ loading: true });
+          const response = await api.post(
+            `/consumer/complaint-add?customer_id=${customerId}&complain=${complain}`
+          );
+          return response.data;
         } catch (error) {
           const errorMessage = error.response?.data?.message || error.message;
           throw new Error(errorMessage);

@@ -1,3 +1,10 @@
+import React, {
+  useLayoutEffect,
+  useEffect,
+  useState,
+  useCallback,
+  memo,
+} from "react";
 import {
   StyleSheet,
   Text,
@@ -7,12 +14,11 @@ import {
   RefreshControl,
   Image,
   Platform,
+  StatusBar,
 } from "react-native";
-import { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { useNavigation, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import { updates } from "../../data";
+import { availablePackages, updates } from "../../data";
 import { useTranslation } from "react-i18next";
 import { setBackgroundColorAsync } from "expo-navigation-bar";
 import Animated, {
@@ -21,95 +27,120 @@ import Animated, {
   withTiming,
   withSpring,
   interpolate,
+  Easing,
+  FadeIn,
 } from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
-import { color } from "@rneui/base";
 import colors from "../../components/theme";
 
-// Reusable Full-Row Tile Component
-const FullRowTile = ({ icon, title, count, onPress, color }) => {
-  const { t } = useTranslation();
-  const scaleAnim = useSharedValue(1);
+// Reusable Full-Row Tile Component, memoized for performance
+const FullRowTile = memo(
+  ({ icon, title, count, onPress, color, index = 0 }) => {
+    const { t } = useTranslation();
+    const scaleAnim = useSharedValue(1);
 
-  const handlePressIn = () => {
-    scaleAnim.value = withSpring(0.98);
-  };
+    const handlePressIn = useCallback(() => {
+      scaleAnim.value = withSpring(0.97);
+    }, [scaleAnim]);
 
-  const handlePressOut = () => {
-    scaleAnim.value = withSpring(1, { damping: 5, stiffness: 40 });
-  };
+    const handlePressOut = useCallback(() => {
+      scaleAnim.value = withSpring(1, { damping: 15, stiffness: 150 });
+    }, [scaleAnim]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
+    const animatedStyle = useAnimatedStyle(() => ({
       transform: [{ scale: scaleAnim.value }],
-    };
-  });
+    }));
 
-  return (
-    <TouchableOpacity
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={onPress}
-      activeOpacity={0.9}
-    >
-      <Animated.View style={[styles.fullRowTile, animatedStyle]}>
-        <View
-          style={[
-            styles.tileContent,
-            { borderLeftColor: color, borderLeftWidth: 4 },
-          ]}
+    return (
+      <Animated.View entering={FadeIn.delay(300 + index * 100)}>
+        <TouchableOpacity
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          onPress={onPress}
+          activeOpacity={0.9}
         >
-          <View style={styles.tileIconContainer}>
-            <Feather name={icon} size={22} color={color} />
-          </View>
-          <View style={styles.tileTextContent}>
-            <Text style={styles.tileTitle}>{title}</Text>
-            {count !== undefined && (
-              <Text style={styles.tileCount}>
-                {count}{" "}
-                <Text style={styles.tileCountLabel}>{t("available")}</Text>
-              </Text>
-            )}
-          </View>
-          <Feather
-            name="chevron-right"
-            size={20}
-            color={colors.textSecondary}
-          />
-        </View>
+          <Animated.View style={[styles.fullRowTile, animatedStyle]}>
+            <View
+              style={[
+                styles.tileContent,
+                { borderLeftColor: color, borderLeftWidth: 4 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.tileIconContainer,
+                  { backgroundColor: `${color}15` },
+                ]}
+              >
+                <Feather name={icon} size={22} color={color} />
+              </View>
+              <View style={styles.tileTextContent}>
+                <Text style={styles.tileTitle}>{title}</Text>
+                {count !== undefined && (
+                  <Text style={styles.tileCount}>
+                    <Text style={{ color, fontWeight: "600" }}>{count}</Text>{" "}
+                    <Text style={styles.tileCountLabel}>{t("available")}</Text>
+                  </Text>
+                )}
+              </View>
+              <View style={styles.chevronContainer}>
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={colors.textMuted}
+                />
+              </View>
+            </View>
+          </Animated.View>
+        </TouchableOpacity>
       </Animated.View>
-    </TouchableOpacity>
-  );
-};
+    );
+  }
+);
 
 const Index = () => {
   const navigation = useNavigation();
-  const progressAnim = useSharedValue(0);
-  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { t } = useTranslation();
-  const { categories, activePackage } = apiStore();
+  const progressAnim = useSharedValue(0);
+  const headerOpacity = useSharedValue(1);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const numOfCategories = categories.map((item) => item.id);
+  const {
+    categories,
+    activePackage,
+    fetchAllPakages,
+    fetchCustomerPackage,
+    fetchCustomerComplaints,
+
+    user,
+  } = apiStore();
+
+  // Memoized list to avoid recalculating on each render
+  const numOfCategories = React.useMemo(
+    () => categories.map((item) => item.id),
+    [categories]
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Image
-          source={require("../../assets/images/farhannetLogo.png")}
-          style={{ width: 110, height: 70, marginLeft: 6 }}
-          resizeMode="contain"
-        />
+        <Animated.View entering={FadeIn.duration(800)}>
+          <Image
+            source={require("../../assets/images/farhannetLogo.png")}
+            style={{ width: 110, height: 70, marginLeft: 6 }}
+            resizeMode="contain"
+          />
+        </Animated.View>
       ),
       headerTitle: "",
       headerStyle: {
-        backgroundColor: colors.backgroundStart,
+        backgroundColor: colors.background,
         elevation: 0,
         shadowOpacity: 0,
         borderBottomWidth: 0,
       },
     });
-    setBackgroundColorAsync("white");
   }, [navigation]);
 
   useEffect(() => {
@@ -123,29 +154,48 @@ const Index = () => {
         (new Date(activePackage.expiry_date) - new Date()) /
           (1000 * 60 * 60 * 24)
       );
-      progressAnim.value = withTiming(
-        (totalDuration - remainingDays) / totalDuration,
-        { duration: 1200 }
-      );
+
+      // Reset progress for a smooth animation
+      progressAnim.value = 0;
+      setTimeout(() => {
+        progressAnim.value = withTiming(
+          (totalDuration - remainingDays) / totalDuration,
+          { duration: 1500, easing: Easing.bezier(0.25, 0.1, 0.25, 1) }
+        );
+      }, 300);
     }
-  }, [activePackage]);
+  }, [activePackage, progressAnim]);
 
-  const progressStyle = useAnimatedStyle(() => {
-    return {
-      width: `${interpolate(progressAnim.value, [0, 1], [0, 100])}%`,
-    };
-  });
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${interpolate(progressAnim.value, [0, 1], [0, 100])}%`,
+  }));
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
-  };
+    headerOpacity.value = withTiming(0.3, { duration: 300 });
+
+    await fetchCustomerPackage(user.id);
+    await fetchAllPakages();
+    await fetchCustomerComplaints(user.id);
+
+    headerOpacity.value = withTiming(1, { duration: 300 });
+    setRefreshing(false);
+  }, [fetchCustomerPackage, fetchAllPakages, headerOpacity, user.id]);
+
+  const daysLeft = activePackage
+    ? Math.ceil(
+        (new Date(activePackage.expiry_date) - new Date()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
+  const isExpired = activePackage?.status === "Expire";
+  // New warning condition: when not expired and exactly 3 days remain
+  const isWarning =
+    activePackage && activePackage.status !== "Expire" && daysLeft <= 3;
 
   return (
-    <LinearGradient
-      colors={[colors.backgroundStart, colors.backgroundEnd]}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -158,35 +208,32 @@ const Index = () => {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Current Package Section without Animation */}
         <View
           style={[
             styles.section,
-            activePackage.status === "Expire" && styles.expiredCard,
+            isExpired && styles.expiredCard,
+            isWarning && styles.warningCard,
           ]}
         >
           <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
           {activePackage ? (
-            <View style={[styles.currentPackageContainer]}>
+            <View style={styles.currentPackageContainer}>
               <View style={styles.currentPackage}>
                 <View style={styles.packageHeader}>
-                  <View>
+                  <View style={styles.packageInfo}>
                     <Text style={styles.packageName} numberOfLines={2}>
                       {activePackage.package}
                     </Text>
                     <Text
                       style={[
                         styles.packageStats,
-                        activePackage.status === "Expire" && {
-                          color: color.danger,
-                        },
+                        isExpired && styles.expiredText,
                       ]}
                     >
-                      {activePackage.status === "Expire"
+                      {isExpired
                         ? t("expired")
-                        : `${Math.ceil(
-                            (new Date(activePackage.expiry_date) - new Date()) /
-                              (1000 * 60 * 60 * 24)
-                          )} ${t("days-left")}`}
+                        : `${daysLeft} ${t("days-left")}`}
                     </Text>
                   </View>
                 </View>
@@ -196,29 +243,36 @@ const Index = () => {
                     style={[
                       styles.progressBar,
                       progressStyle,
-                      activePackage.status === "Expire" && {
-                        backgroundColor: colors.danger,
-                      },
+                      isExpired && styles.expiredProgressBar,
+                      isWarning && styles.warningProgressBar,
                     ]}
                   />
                 </View>
+
+                <Text style={styles.expiryDate}>
+                  {t("expires")}: {activePackage.expiry_date}
+                </Text>
               </View>
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Feather
-                name="alert-circle"
-                size={24}
-                color={colors.textSecondary}
-              />
+              <Feather name="alert-circle" size={24} color={colors.textMuted} />
               <Text style={styles.emptyStateText}>
                 {t("no-active-package")}
               </Text>
+              <TouchableOpacity
+                style={styles.getPackageButton}
+                onPress={() => router.navigate("screens/CategoriesList")}
+              >
+                <Text style={styles.getPackageButtonText}>
+                  {t("get-package")}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* Full-Row Tiles for Other Sections */}
+        {/* Tiles Section */}
         <View style={styles.tilesContainer}>
           <FullRowTile
             icon="package"
@@ -226,55 +280,66 @@ const Index = () => {
             count={numOfCategories.length}
             color={colors.accent}
             onPress={() => router.navigate("screens/CategoriesList")}
+            index={0}
           />
           <FullRowTile
             icon="bell"
             title={t("updates")}
             count={updates.length}
-            color={colors.warning}
+            color={colors.primary}
             onPress={() => router.navigate("screens/Updates")}
+            index={1}
           />
           <FullRowTile
             icon="message-circle"
             title={t("feedback")}
-            color={colors.primary}
+            color="#6366F1"
             onPress={() => router.navigate("screens/Feadback")}
+            index={2}
+          />
+          <FullRowTile
+            icon="help-circle"
+            title={t("support")}
+            color={colors.secondary2}
+            onPress={() => router.navigate("screens/Contact")}
+            index={3}
           />
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 20,
     paddingTop: 10,
   },
   section: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 24,
-    backgroundColor: colors.cardBackground,
+    backgroundColor: colors.background,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "700",
     marginBottom: 16,
     letterSpacing: 0.2,
   },
@@ -282,16 +347,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   currentPackageContainer: {
-    borderRadius: 16, // Match the card's border radius
-    overflow: "hidden", // Ensure the border radius is applied correctly
+    borderRadius: 16,
+    overflow: "hidden",
   },
   expiredCard: {
-    borderWidth: 2, // Add a border width
-    borderColor: colors.danger, // Red border color
+    borderWidth: 2,
+    borderColor: colors.danger,
+    borderStyle: "dashed",
   },
-  expiredPackage: {
-    borderLeftColor: colors.danger, // Red border for expired package
-    borderLeftWidth: 4,
+  warningCard: {
+    borderWidth: 2,
+    borderColor: colors.secondary2,
+    borderStyle: "solid",
   },
   packageHeader: {
     flexDirection: "row",
@@ -299,80 +366,105 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  packageInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
   packageName: {
-    color: colors.textPrimary,
-    fontSize: 18,
+    color: colors.text,
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   packageStats: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontSize: 14,
+    fontWeight: "500",
   },
-  iconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+  expiredText: {
+    color: colors.danger,
+    fontWeight: "600",
   },
   progressContainer: {
-    height: 6,
-    backgroundColor: colors.progressBg,
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: colors.secondary,
+    borderRadius: 4,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   progressBar: {
     height: "100%",
     backgroundColor: colors.primary,
-    borderRadius: 3,
+    borderRadius: 4,
+  },
+  expiredProgressBar: {
+    backgroundColor: colors.danger,
+  },
+  warningProgressBar: {
+    backgroundColor: colors.secondary2,
+  },
+  expiryDate: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "left",
   },
   emptyState: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
   },
   emptyStateText: {
-    color: colors.textSecondary,
-    marginLeft: 8,
+    color: colors.textMuted,
+    marginTop: 8,
+    marginBottom: 16,
+    fontSize: 15,
+    textAlign: "center",
+  },
+  getPackageButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  getPackageButtonText: {
+    color: "white",
+    fontWeight: "600",
     fontSize: 14,
   },
   tilesContainer: {
     marginBottom: 20,
   },
   fullRowTile: {
-    borderRadius: 14,
-    marginBottom: 12,
-    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    marginBottom: 14,
+    backgroundColor: colors.background,
     overflow: "hidden",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 1,
+        elevation: 2,
       },
     }),
   },
   tileContent: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: colors.cardBackground,
+    padding: 18,
+    borderRadius: 16,
+    backgroundColor: colors.background,
   },
   tileIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 46,
+    height: 46,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.secondary,
   },
   tileTextContent: {
     flex: 1,
@@ -381,17 +473,24 @@ const styles = StyleSheet.create({
   tileTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: 2,
+    color: colors.text,
+    marginBottom: 4,
   },
   tileCount: {
     fontSize: 14,
-    fontWeight: "500",
-    color: colors.textPrimary,
+    color: colors.text,
   },
   tileCountLabel: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontWeight: "400",
+  },
+  chevronContainer: {
+    backgroundColor: colors.secondary + "40",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

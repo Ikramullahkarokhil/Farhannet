@@ -1,101 +1,84 @@
-import React, { useLayoutEffect, useState, useRef, useEffect } from "react";
+import React, {
+  useLayoutEffect,
+  useState,
+  useRef,
+  useCallback,
+  memo,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   StyleSheet,
   Text,
   View,
   TextInput,
-  TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Pressable,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  SlideInRight,
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
+import colors from "../../../components/theme";
+import apiStore from "../../../components/api/apiStore";
 
-const Index = () => {
-  const { t } = useTranslation();
-  const [feedback, setFeedback] = useState("");
-  const [messages, setMessages] = useState([]);
-  const navigation = useNavigation();
-  const flatListRef = useRef(null);
-  const fadeAnim = useSharedValue(0);
+// Extracted helper function so it won't be recreated on every render.
+const getStatusColor = (status) => {
+  switch (status) {
+    case "Pending":
+      return colors.secondary;
+    case "Process":
+      return colors.secondary2;
+    case "Complete":
+      return colors.accent;
+    case "Cancelled":
+      return colors.danger;
+    case "Posting":
+      return colors.primary;
+    case "Failed":
+      return colors.danger;
+    default:
+      return colors.primary;
+  }
+};
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: t("feedback"),
-      headerStyle: {
-        backgroundColor: "#ffffff",
-        elevation: 0,
-        shadowOpacity: 0,
-        borderBottomWidth: 0,
-      },
-      headerTitleStyle: {
-        fontWeight: "700",
-        fontSize: 18,
-        color: "#333333",
-      },
-      headerShadowVisible: false,
-    });
-  }, [navigation, t]);
+// Message component: memoized to avoid unnecessary re-renders.
+const Message = memo(({ item, index, messages }) => {
+  const isSequential =
+    index > 0 &&
+    messages[index - 1].isUser === item.isUser &&
+    !item.isComplaint;
 
-  useEffect(() => {
-    // Fade in animation for empty state
-    fadeAnim.value = withTiming(1, { duration: 800 });
-  }, [fadeAnim]);
+  const statusColor = item.status
+    ? getStatusColor(item.status)
+    : colors.primary;
 
-  const submitFeedback = () => {
-    if (feedback.trim() === "") {
-      alert(t("please-provide-feedback"));
-      return;
-    }
+  const isFirstComplaintMessage =
+    item.isComplaint &&
+    item.isUser &&
+    (index === 0 || messages[index - 1]?.date !== item.date);
 
-    // Add user feedback to messages
-    const newFeedback = {
-      id: Date.now().toString(),
-      text: feedback,
-      isUser: true,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    // Simulate ISP response (replace with actual API call if needed)
-    const ispResponse = {
-      id: (Date.now() + 1).toString(),
-      text: "Thank you for your feedback! We're reviewing your input.",
-      isUser: false,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    const updatedMessages = [...messages, newFeedback, ispResponse];
-    setMessages(updatedMessages);
-    setFeedback("");
-
-    // Scroll to the latest message
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  const renderMessage = ({ item, index }) => {
-    // Check if this message is part of a sequence from the same sender
-    const isSequential =
-      index > 0 && messages[index - 1].isUser === item.isUser;
-
-    return (
-      <View style={styles.messageWrapper}>
-        {!item.isUser && !isSequential && (
+  return (
+    <>
+      {isFirstComplaintMessage && (
+        <View style={styles.dateSeparator}>
+          <Text style={styles.dateText}>{item.date}</Text>
+        </View>
+      )}
+      <Animated.View
+        entering={SlideInRight.duration(300).delay((index % 3) * 50)}
+        style={styles.messageWrapper}
+      >
+        {!item.isUser && (
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>ISP</Text>
@@ -111,92 +94,387 @@ const Index = () => {
                 ? styles.sequentialUserBubble
                 : styles.sequentialIspBubble
               : {},
+            !item.isUser && { backgroundColor: statusColor, borderWidth: 0 },
           ]}
         >
           <Text
             style={[
               styles.messageText,
               item.isUser ? styles.userText : styles.ispText,
+              !item.isUser && item.status && item.status !== "Pending"
+                ? { color: "white" }
+                : {},
             ]}
           >
             {item.text}
           </Text>
+
+          {item.status === "Posting" && !item.hidePostingIndicator && (
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: `${statusColor}20` },
+              ]}
+            >
+              <View style={styles.postingContainer}>
+                <ActivityIndicator size="small" color={statusColor} />
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: statusColor, marginLeft: 5 },
+                  ]}
+                >
+                  Posting...
+                </Text>
+              </View>
+            </View>
+          )}
+
           <Text
             style={[
               styles.timestamp,
               item.isUser ? styles.userTimestamp : styles.ispTimestamp,
+              !item.isUser && item.status && item.status !== "Pending"
+                ? { color: "white" }
+                : {},
             ]}
           >
             {item.timestamp}
           </Text>
         </View>
-      </View>
-    );
-  };
+      </Animated.View>
+    </>
+  );
+});
+
+// Empty state component with animated fade-in.
+const EmptyState = memo(({ t }) => {
+  const fadeAnim = useSharedValue(0);
+
+  useEffect(() => {
+    fadeAnim.value = withTiming(1, { duration: 800 });
+  }, [fadeAnim]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
   }));
 
-  const renderEmptyState = () => (
+  return (
     <Animated.View style={[styles.emptyContainer, animatedStyle]}>
       <View style={styles.emptyIconContainer}>
         <Ionicons
           name="chatbubble-ellipses-outline"
           size={60}
-          color="#007AFF"
+          color={colors.primary}
         />
       </View>
       <Text style={styles.emptyText}>{t("no-feedback-yet")}</Text>
       <Text style={styles.emptySubText}>{t("share-your-thoughts-below")}</Text>
     </Animated.View>
   );
+});
+
+const Index = () => {
+  const { t } = useTranslation();
+  const [feedback, setFeedback] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [tempMessages, setTempMessages] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigation = useNavigation();
+  const flatListRef = useRef(null);
+  const inputRef = useRef(null);
+  const { complaints, addComplain, user } = apiStore();
+  const shouldScrollToBottomRef = useRef(false);
+
+  const getStatusMessage = useCallback((status) => {
+    switch (status) {
+      case "Pending":
+        return "Your complaint has been received and is waiting for review by our team.";
+      case "Process":
+        return "We're currently working on your complaint. Our team is investigating the issue.";
+      case "Complete":
+        return "Your complaint has been resolved. Thank you for your patience.";
+      case "Cancelled":
+        return "This complaint has been canceled. Please contact support if you need further assistance.";
+      case "Posting":
+        return "We're sending your feedback to our team...";
+      case "Failed":
+        return "Failed to send your feedback. Please try again later.";
+      default:
+        return "We've received your feedback and will get back to you soon.";
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!complaints || !complaints.length) return;
+
+    const complaintMessages = complaints.map((complaint) => ({
+      id: `complaint-${complaint.id}`,
+      text: complaint.complain,
+      isUser: true,
+      timestamp: new Date(complaint.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      date: new Date(complaint.created_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+      status: complaint.status,
+      originalId: complaint.id,
+      isComplaint: true,
+      createdAt: new Date(complaint.created_at).getTime(),
+    }));
+
+    const responseMessages = complaints.map((complaint) => ({
+      id: `response-${complaint.id}`,
+      text: getStatusMessage(complaint.status),
+      isUser: false,
+      timestamp: new Date(complaint.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      date: new Date(complaint.created_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+      status: complaint.status,
+      originalId: complaint.id,
+      isComplaint: true,
+      createdAt: new Date(complaint.created_at).getTime() + 1,
+    }));
+
+    const allMessages = [];
+    for (let i = 0; i < complaintMessages.length; i++) {
+      allMessages.push(complaintMessages[i], responseMessages[i]);
+    }
+
+    allMessages.sort((a, b) => a.createdAt - b.createdAt);
+
+    const replacedTempIds = new Set(
+      allMessages
+        .filter((msg) => msg.originalId)
+        .map((msg) => msg.originalId.toString())
+    );
+
+    setMessages(allMessages);
+    setTempMessages((prev) =>
+      prev.filter(
+        (msg) => !msg.tempId || !replacedTempIds.has(msg.tempId.toString())
+      )
+    );
+  }, [complaints, getStatusMessage]);
+
+  const combinedMessages = useMemo(() => {
+    const sortedTempMessages = [...tempMessages].sort(
+      (a, b) => a.createdAt - b.createdAt
+    );
+    return [...messages, ...sortedTempMessages];
+  }, [messages, tempMessages]);
+
+  useEffect(() => {
+    if (shouldScrollToBottomRef.current && combinedMessages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      shouldScrollToBottomRef.current = false;
+    }
+  }, [combinedMessages]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: t("feedback"),
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.text,
+        fontWeight: "600",
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, t]);
+
+  const submitFeedback = useCallback(async () => {
+    if (feedback.trim() === "" || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const tempId = Date.now().toString();
+    const currentTime = new Date();
+    const currentTimeMs = currentTime.getTime();
+
+    const newFeedback = {
+      id: `user-${tempId}`,
+      text: feedback,
+      isUser: true,
+      timestamp: currentTime.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      date: currentTime.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+      status: "Posting",
+      tempId: tempId,
+      isComplaint: true,
+      createdAt: currentTimeMs,
+    };
+
+    const tempResponse = {
+      id: `response-${tempId}`,
+      text: getStatusMessage("Posting"),
+      isUser: false,
+      timestamp: currentTime.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      date: currentTime.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+      status: "Posting",
+      tempId: tempId,
+      isComplaint: true,
+      createdAt: currentTimeMs + 1,
+    };
+
+    setTempMessages((prev) => [...prev, newFeedback, tempResponse]);
+    setFeedback("");
+    shouldScrollToBottomRef.current = true;
+
+    try {
+      const response = await addComplain({
+        customerId: user.id,
+        complain: newFeedback.text,
+      });
+
+      if (response && response.status === "success") {
+        setTempMessages((prev) =>
+          prev.map((msg) =>
+            msg.tempId === tempId
+              ? {
+                  ...msg,
+                  status: "Pending",
+                  tempId: null,
+                  text: msg.isUser ? msg.text : getStatusMessage("Pending"),
+                }
+              : msg
+          )
+        );
+      }
+    } catch (error) {
+      setTempMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId
+            ? {
+                ...msg,
+                status: "Failed",
+                text: msg.isUser
+                  ? msg.text
+                  : "Failed to send your feedback. Please try again later.",
+              }
+            : msg
+        )
+      );
+      console.error("Error submitting feedback:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [feedback, isSubmitting, getStatusMessage, addComplain, user.id]);
+
+  // Wrap render function in useCallback for stable reference.
+  const renderMessage = useCallback(
+    ({ item, index }) => (
+      <Message item={item} index={index} messages={combinedMessages} />
+    ),
+    [combinedMessages]
+  );
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  const scrollToBottom = useCallback(() => {
+    if (combinedMessages.length > 0) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [combinedMessages]);
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        {messages.length === 0 ? (
-          renderEmptyState()
+        {combinedMessages.length === 0 ? (
+          <EmptyState t={t} />
         ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.messagesContainer}
-            showsVerticalScrollIndicator={false}
-            onContentSizeChange={() =>
-              flatListRef.current?.scrollToEnd({ animated: true })
-            }
-            keyboardShouldPersistTaps="handled"
-          />
+          <>
+            <FlatList
+              ref={flatListRef}
+              data={combinedMessages}
+              renderItem={renderMessage}
+              keyExtractor={keyExtractor}
+              contentContainerStyle={styles.messagesContainer}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+              removeClippedSubviews={Platform.OS === "android"}
+              onContentSizeChange={scrollToBottom}
+              onLayout={scrollToBottom}
+            />
+            {combinedMessages.length > 10 && (
+              <Pressable
+                style={styles.scrollToBottomButton}
+                onPress={scrollToBottom}
+              >
+                <Ionicons
+                  name="chevron-down"
+                  size={24}
+                  color={colors.background}
+                />
+              </Pressable>
+            )}
+          </>
         )}
       </KeyboardAvoidingView>
       <View style={styles.inputContainer}>
         <TextInput
+          ref={inputRef}
           style={styles.input}
           multiline
           placeholder={t("share-your-feedback")}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textMuted}
           value={feedback}
           onChangeText={setFeedback}
           maxLength={500}
+          editable={!isSubmitting}
+          accessibilityLabel="Feedback input"
         />
-        <TouchableOpacity
-          style={[
+        <Pressable
+          style={({ pressed }) => [
             styles.submitButton,
-            !feedback.trim() && styles.submitButtonDisabled,
+            (!feedback.trim() || isSubmitting) && styles.submitButtonDisabled,
+            pressed && styles.submitButtonPressed,
           ]}
           onPress={submitFeedback}
-          disabled={!feedback.trim()}
+          disabled={!feedback.trim() || isSubmitting}
+          android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
+          accessibilityLabel="Send feedback"
         >
-          <Ionicons name="send" size={20} color="#fff" />
-        </TouchableOpacity>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={colors.background} />
+          ) : (
+            <Ionicons name="send" size={20} color={colors.background} />
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -207,18 +485,18 @@ export default Index;
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
   },
   messagesContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 150,
   },
   messageWrapper: {
     flexDirection: "row",
-    marginBottom: 8,
+    marginBottom: 16,
     alignItems: "flex-end",
   },
   avatarContainer: {
@@ -231,14 +509,27 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: `${colors.primary}20`,
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#4B5563",
+    color: colors.primary,
+  },
+  dateSeparator: {
+    alignItems: "center",
+    marginVertical: 12,
+  },
+  dateText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    backgroundColor: `${colors.secondary}90`,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   emptyContainer: {
     flex: 1,
@@ -250,42 +541,42 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
+    backgroundColor: `${colors.primary}19`,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
   },
   emptyText: {
     fontSize: 20,
-    color: "#333333",
+    color: colors.text,
     fontWeight: "700",
     textAlign: "center",
   },
   emptySubText: {
     fontSize: 16,
-    color: "#6B7280",
+    color: colors.textMuted,
     marginTop: 12,
     textAlign: "center",
     lineHeight: 22,
   },
   messageBubble: {
-    maxWidth: "75%",
+    maxWidth: "80%",
     padding: 14,
     borderRadius: 20,
     marginBottom: 2,
   },
   userBubble: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     alignSelf: "flex-end",
     borderTopRightRadius: 4,
     marginLeft: "auto",
   },
   ispBubble: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.secondary,
     alignSelf: "flex-start",
     borderTopLeftRadius: 4,
-    borderWidth: 0,
-    shadowColor: "#000",
+    borderWidth: 2,
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -296,17 +587,17 @@ const styles = StyleSheet.create({
   },
   sequentialIspBubble: {
     borderTopLeftRadius: 20,
-    marginLeft: 40, // Space for avatar
+    marginLeft: 40,
   },
   messageText: {
     fontSize: 15,
     lineHeight: 22,
   },
   userText: {
-    color: "#fff",
+    color: colors.background,
   },
   ispText: {
-    color: "#333",
+    color: colors.text,
   },
   timestamp: {
     fontSize: 11,
@@ -317,46 +608,89 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.7)",
   },
   ispTimestamp: {
-    color: "rgba(51, 51, 51, 0.5)",
+    color: `${colors.text}80`,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  postingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  scrollToBottomButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 110,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 5,
   },
   inputContainer: {
     flexDirection: "row",
     padding: 10,
-    backgroundColor: "white",
-    // paddingBottom: 40,
+    backgroundColor: colors.background,
     alignItems: "center",
     position: "absolute",
     bottom: 0,
+    left: 0,
+    right: 0,
     elevation: 5,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingBottom: Platform.OS === "ios" ? 30 : 40,
   },
   input: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: colors.secondary,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
-    color: "#333",
+    color: colors.text,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     marginRight: 8,
     maxHeight: 120,
   },
   submitButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     borderRadius: 22,
     width: 44,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#007AFF",
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
   },
   submitButtonDisabled: {
-    backgroundColor: "#A1C6F7",
+    backgroundColor: `${colors.primary}66`,
     shadowOpacity: 0,
+  },
+  submitButtonPressed: {
+    backgroundColor: `${colors.primary}E6`,
+    transform: [{ scale: 0.97 }],
   },
 });

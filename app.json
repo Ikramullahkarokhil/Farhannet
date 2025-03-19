@@ -21,12 +21,7 @@
         "foregroundImage": "./assets/splash-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.farhanIct.farhannet",
-      "versionCode": 1,
-      "useNextNotificationsApi": true,
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true,
-      "useLegacyPackaging": false
+      "package": "com.farhanIct.farhannet"
     },
     "web": {
       "favicon": "./assets/splash-icon.png"

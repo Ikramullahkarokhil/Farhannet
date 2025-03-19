@@ -16,13 +16,14 @@ import Animated, {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
+import colors from "../../../components/theme";
 
 const Index = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
   const scaleValue = useSharedValue(1);
-  const ICON_COLOR = "#007AFF";
-  const DISABLED_COLOR = "#999999";
+  const ICON_COLOR = colors.primary;
+  const DISABLED_COLOR = colors.textMuted;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -189,30 +190,32 @@ const Index = () => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     padding: 24,
     paddingTop: 20,
   },
   header: {
     fontSize: 26,
     fontWeight: "800",
-    color: "#333",
+    color: colors.text,
     marginBottom: 20,
     letterSpacing: 1.2,
   },
   highlight: {
-    color: "#007AFF",
+    color: colors.primary,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: colors.background,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardContent: {
     flexDirection: "row",
@@ -222,13 +225,13 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   cardLabel: {
-    color: "#666",
+    color: colors.textMuted,
     fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   cardValue: {
-    color: "#333",
+    color: colors.text,
     fontSize: 16,
     marginTop: 4,
     fontWeight: "500",
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   socialHeader: {
-    color: "#666",
+    color: colors.textMuted,
     fontWeight: "600",
     letterSpacing: 1.2,
     marginBottom: 16,
@@ -249,12 +252,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   socialIconWrapper: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.secondary,
     borderRadius: 16,
     padding: 14,
     margin: 8,
     elevation: 4,
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,

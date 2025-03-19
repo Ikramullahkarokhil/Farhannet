@@ -18,6 +18,8 @@ import Animated, {
   withRepeat,
   Easing,
 } from "react-native-reanimated";
+import colors from "../../components/theme";
+import { useTranslation } from "react-i18next";
 
 const SpeedTest = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -27,6 +29,7 @@ const SpeedTest = () => {
   const [showResults, setShowResults] = useState(false);
   const [currentTest, setCurrentTest] = useState("none");
   const [progress, setProgress] = useState(0);
+  const { t } = useTranslation();
 
   // Reanimated shared values
   const progressAnim = useSharedValue(0);
@@ -72,17 +75,17 @@ const SpeedTest = () => {
       );
       glowLoopRef.current = () => (glowAnim.value = 0); // Store cancel function
 
-      setCurrentTest("download");
+      setCurrentTest(t("download"));
       await testDownloadSpeed();
       setProgress(33);
       updateProgress(33);
 
-      setCurrentTest("upload");
+      setCurrentTest(t("upload"));
       await testUploadSpeed();
       setProgress(66);
       updateProgress(66);
 
-      setCurrentTest("ping");
+      setCurrentTest(t("ping"));
       await calculatePing();
       setProgress(100);
       updateProgress(100);
@@ -202,10 +205,10 @@ const SpeedTest = () => {
   // Animated styles
   const progressStyle = useAnimatedStyle(() => ({
     transform: [
-      { rotate: `${progressAnim.value * 3.6}deg` }, // 0-100 -> 0-360deg
+      { rotate: `${progressAnim.value * 3.6}deg` },
       { scale: scaleAnim.value },
     ],
-    shadowRadius: glowAnim.value * 8, // 0-1 -> 0-8
+    shadowRadius: glowAnim.value * 8,
     shadowOpacity: glowAnim.value,
   }));
 
@@ -215,13 +218,14 @@ const SpeedTest = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.header}>
-          <Text style={styles.subtitle}>Check your connection speed</Text>
+          <Text style={styles.subtitle}>
+            {t("check-your-connection-speed")}
+          </Text>
         </View>
 
         <View style={styles.progressContainer}>
@@ -238,7 +242,7 @@ const SpeedTest = () => {
               <View style={styles.innerCircle}>
                 {isTesting ? (
                   <>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                     <Text style={styles.progressText}>{`${progress}%`}</Text>
                   </>
                 ) : (
@@ -247,10 +251,14 @@ const SpeedTest = () => {
                       {showResults ? downloadSpeed : ""}
                     </Text>
                     <Text style={styles.unitText}>
-                      {showResults ? "Mbps" : "Start Test"}
+                      {showResults ? t("mbps") : t("start-test")}
                     </Text>
                     {!showResults && (
-                      <MaterialIcons name="speed" size={36} color="#007AFF" />
+                      <MaterialIcons
+                        name="speed"
+                        size={36}
+                        color={colors.primary}
+                      />
                     )}
                   </>
                 )}
@@ -261,9 +269,9 @@ const SpeedTest = () => {
           {isTesting && (
             <View style={styles.testStatusCard}>
               <Text style={styles.testMessage}>
-                {currentTest === "download" && "Testing Download Speed..."}
-                {currentTest === "upload" && "Testing Upload Speed..."}
-                {currentTest === "ping" && "Testing Ping..."}
+                {currentTest === "download" && t("testing-download-speed")}
+                {currentTest === "upload" && t("testing-upload-speed")}
+                {currentTest === "ping" && t("testing-ping")}
               </Text>
               <View style={styles.progressBarContainer}>
                 <Animated.View style={[styles.progressBar, progressBarStyle]} />
@@ -281,11 +289,13 @@ const SpeedTest = () => {
                   <MaterialIcons
                     name="cloud-download"
                     size={24}
-                    color="#007AFF"
+                    color={colors.primary}
                   />
                 </View>
-                <Text style={styles.resultTitle}>Download</Text>
-                <Text style={styles.resultValue}>{downloadSpeed} Mbps</Text>
+                <Text style={styles.resultTitle}>{t("download")}</Text>
+                <Text style={styles.resultValue}>
+                  {downloadSpeed} {t("mbps")}
+                </Text>
               </View>
 
               <View style={styles.resultCard}>
@@ -293,11 +303,13 @@ const SpeedTest = () => {
                   <MaterialIcons
                     name="cloud-upload"
                     size={24}
-                    color="#007AFF"
+                    color={colors.primary}
                   />
                 </View>
-                <Text style={styles.resultTitle}>Upload</Text>
-                <Text style={styles.resultValue}>{uploadSpeed} Mbps</Text>
+                <Text style={styles.resultTitle}>{t("upload")}</Text>
+                <Text style={styles.resultValue}>
+                  {uploadSpeed} {t("upload")}
+                </Text>
               </View>
 
               <View style={styles.resultCard}>
@@ -305,11 +317,13 @@ const SpeedTest = () => {
                   <MaterialIcons
                     name="network-check"
                     size={24}
-                    color="#007AFF"
+                    color={colors.primary}
                   />
                 </View>
-                <Text style={styles.resultTitle}>Ping</Text>
-                <Text style={styles.resultValue}>{ping} ms</Text>
+                <Text style={styles.resultTitle}>{t("ping")}</Text>
+                <Text style={styles.resultValue}>
+                  {ping} {t("ms")}
+                </Text>
               </View>
             </View>
 
@@ -319,18 +333,22 @@ const SpeedTest = () => {
               activeOpacity={0.8}
               accessibilityLabel="Run speed test again"
             >
-              <MaterialIcons name="refresh" size={20} color="#FFFFFF" />
-              <Text style={styles.retestButtonText}>Run Again</Text>
+              <MaterialIcons
+                name="refresh"
+                size={20}
+                color={colors.background}
+              />
+              <Text style={styles.retestButtonText}>{t("run-agian")}</Text>
             </TouchableOpacity>
           </>
         )}
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>About Speed Test</Text>
+          <Text style={styles.infoTitle}>{t("about-speed-test")}</Text>
           <Text style={styles.infoText}>
-            This test measures your connection's download speed, upload speed,
-            and ping latency. Results may vary based on network conditions and
-            server load.
+            {t(
+              "This test measures your connections download speed, upload speed, and ping latency. Results may vary based on network conditions and server load."
+            )}
           </Text>
         </View>
       </ScrollView>
@@ -341,11 +359,11 @@ const SpeedTest = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
+    backgroundColor: colors.background,
   },
   contentContainer: {
     padding: 20,
@@ -357,7 +375,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: "#6E6E73",
+    color: colors.textMuted,
   },
   progressContainer: {
     alignItems: "center",
@@ -368,13 +386,13 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 110,
     borderWidth: 12,
-    borderColor: "#E9ECEF",
-    borderLeftColor: "#007AFF",
-    borderTopColor: "#007AFF",
+    borderColor: colors.border,
+    borderLeftColor: colors.primary,
+    borderTopColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
     marginVertical: 20,
-    shadowColor: "#007AFF",
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
@@ -388,10 +406,10 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -400,26 +418,26 @@ const styles = StyleSheet.create({
   speedText: {
     fontSize: 42,
     fontWeight: "bold",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   unitText: {
     fontSize: 18,
-    color: "#6E6E73",
+    color: colors.textMuted,
     marginTop: 5,
     fontWeight: "500",
   },
   progressText: {
     fontSize: 16,
-    color: "#007AFF",
+    color: colors.primary,
     fontWeight: "600",
     marginTop: 10,
   },
   testStatusCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     borderRadius: 16,
     padding: 16,
     width: "100%",
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -428,26 +446,26 @@ const styles = StyleSheet.create({
   },
   testMessage: {
     fontSize: 16,
-    color: "#007AFF",
+    color: colors.primary,
     fontWeight: "600",
     marginBottom: 10,
     textAlign: "center",
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: "#E9ECEF",
+    backgroundColor: colors.border,
     borderRadius: 4,
     overflow: "hidden",
   },
   progressBar: {
     height: "100%",
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     borderRadius: 4,
   },
   resultsTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 15,
     marginTop: 10,
   },
@@ -457,12 +475,12 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   resultCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     padding: 15,
     borderRadius: 16,
     alignItems: "center",
     width: "31%",
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -472,13 +490,13 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
+    backgroundColor: `${colors.primary}19`, // 10% opacity
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
   },
   resultTitle: {
-    color: "#6E6E73",
+    color: colors.textMuted,
     fontSize: 14,
     marginBottom: 5,
     fontWeight: "500",
@@ -486,10 +504,10 @@ const styles = StyleSheet.create({
   resultValue: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1A1A1A",
+    color: colors.text,
   },
   retestButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -499,16 +517,16 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   retestButtonText: {
-    color: "#FFFFFF",
+    color: colors.background,
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
   },
   infoCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.background,
     borderRadius: 16,
     padding: 20,
-    shadowColor: "#000",
+    shadowColor: colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -517,12 +535,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: colors.text,
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: "#6E6E73",
+    color: colors.textMuted,
     lineHeight: 20,
   },
 });

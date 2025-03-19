@@ -11,7 +11,7 @@ import { I18nextProvider, useTranslation } from "react-i18next";
 import i18next from "../locales/languageConfig";
 import * as Notifications from "expo-notifications";
 import apiStore from "../components/api/apiStore";
-
+import colors from "../components/theme";
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
@@ -23,7 +23,12 @@ const Layout = () => {
   const notificationListener = useRef();
   const responseListener = useRef();
   const appInitialized = useRef(false);
-  const { fetchAllPakages, fetchCustomerPackage, user } = apiStore();
+  const {
+    fetchAllPakages,
+    fetchCustomerPackage,
+    fetchCustomerComplaints,
+    user,
+  } = apiStore();
 
   useEffect(() => {
     const getApiData = async () => {
@@ -35,7 +40,7 @@ const Layout = () => {
   useEffect(() => {
     async function prepare() {
       try {
-        await setBackgroundColorAsync("white");
+        await setBackgroundColorAsync(colors.background);
         try {
         } catch (notificationError) {
           console.warn(
@@ -54,6 +59,7 @@ const Layout = () => {
         const sessionData = await AsyncStorage.getItem("userSession");
         if (sessionData) {
           await fetchCustomerPackage(user.id);
+          await fetchCustomerComplaints(user.id);
           const { timestamp } = JSON.parse(sessionData);
           const oneMonth = 30 * 24 * 60 * 60 * 1000;
 

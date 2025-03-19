@@ -1,240 +1,414 @@
-import React, { useEffect, useState } from "react";
+"use client";
+
+import { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
   View,
   KeyboardAvoidingView,
   Platform,
-  Animated,
+  Image,
+  ScrollView,
+  Dimensions,
+  TextInput,
+  ActivityIndicator,
   TouchableOpacity,
-  ActivityIndicator, // Import ActivityIndicator
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import { setBackgroundColorAsync } from "expo-navigation-bar";
-import { Formik } from "formik";
 import * as Yup from "yup";
-import { TextInput } from "react-native";
 import { Button } from "react-native-paper";
 import { useTranslation } from "react-i18next";
 import apiStore from "../components/api/apiStore";
 import { MaterialIcons } from "@expo/vector-icons";
+import colors from "../components/theme";
+
+// Import Reanimated 3 hooks
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+} from "react-native-reanimated";
+
+// Detect screen width for responsiveness
+const { width } = Dimensions.get("window");
+const isTablet = width > 600;
 
 const Login = () => {
   const { t } = useTranslation();
   const router = useRouter();
   const { login } = apiStore();
-  const [fadeAnim] = useState(new Animated.Value(0)); // For fade-in animation
+
+  // Reanimated shared values for fade and slide
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(50);
+
+  // Define an animated style that combines the shared values
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+      transform: [{ translateY: translateY.value }],
+    };
+  });
+
+  const [values, setValues] = useState({ username: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   useEffect(() => {
-    setBackgroundColorAsync("#1E90FF");
-    // Fade-in animation
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
+    // Animate opacity and slide-in when component mounts
+    opacity.value = withTiming(1, { duration: 800 });
+    translateY.value = withTiming(0, { duration: 800 });
   }, []);
 
   const validationSchema = Yup.object().shape({
     username: Yup.string().required(t("username-is-required")),
     password: Yup.string()
       .required(t("password-is-required"))
-      .min(4, "Username must be at least 4 characters")
-      .min(8, "Password must be at least 4 characters"),
+      .min(8, t("password-min-length")),
   });
 
-  const handleLogin = async (values, { setSubmitting, setStatus }) => {
-    try {
-      const response = await login(values.username, values.password);
-      const sessionData = {
-        username: values.username,
-        timestamp: Date.now(),
-      };
-      if (response.status === "success") {
-        await AsyncStorage.setItem("userSession", JSON.stringify(sessionData));
-        router.replace("/(drawer)");
-        setStatus({ success: response.message });
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      setStatus({ error: error.message });
-    }
-    setSubmitting(false);
+  const handleChange = (field) => (text) => {
+    setValues({ ...values, [field]: text });
+    setErrors({ ...errors, [field]: null }); // Clear error when typing
+    setStatus(null); // Clear status messages when typing
   };
 
+  const validateForm = async () => {
+    try {
+      await validationSchema.validate(values, { abortEarly: false });
+      setErrors({});
+      return true;
+    } catch (err) {
+      if (err instanceof Yup.ValidationError) {
+        const errorMessages = {};
+        err.inner.forEach((error) => {
+          errorMessages[error.path] = error.message;
+        });
+        setErrors(errorMessages);
+      }
+      return false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setStatus(null);
+
+    const isValid = await validateForm();
+
+    if (isValid) {
+      try {
+        const response = await login(values.username, values.password);
+
+        const sessionData = {
+          username: values.username,
+          timestamp: Date.now(),
+        };
+
+        if (response.status === "success") {
+          await AsyncStorage.setItem(
+            "userSession",
+            JSON.stringify(sessionData)
+          );
+
+          // Show success message briefly before navigating
+          setStatus({ success: response.message || t("login-successful") });
+
+          setTimeout(() => {
+            router.replace("/(drawer)");
+          }, 500);
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        setStatus({
+          error: error.message || t("login-failed"),
+        });
+
+        // Shake animation for error using withSequence
+        translateY.value = withSequence(
+          withTiming(-10, { duration: 50 }),
+          withTiming(10, { duration: 50 }),
+          withTiming(-10, { duration: 50 }),
+          withTiming(10, { duration: 50 }),
+          withTiming(0, { duration: 50 })
+        );
+      }
+    }
+    setIsSubmitting(false);
+  };
+
+  const getInputStyle = (field) => [
+    styles.input,
+    focusedField === field && styles.inputFocused,
+  ];
+
   return (
-    <LinearGradient
-      colors={["#FFA500", "#1E90FF"]}
-      style={styles.container}
-      start={[0, 0]}
-      end={[1, 1]}
-    >
+    <View style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
-        <Animated.View style={[styles.innerContainer, { opacity: fadeAnim }]}>
-          <Text style={styles.title}>{t("welcome")}</Text>
-          <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
-          <Formik
-            initialValues={{ username: "", password: "" }}
-            validationSchema={validationSchema}
-            onSubmit={handleLogin}
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View
+            style={[
+              styles.innerContainer,
+              animatedStyle,
+              { maxWidth: isTablet ? 500 : 400 },
+            ]}
           >
-            {({
-              handleChange,
-              handleBlur,
-              handleSubmit,
-              values,
-              errors,
-              touched,
-              isSubmitting,
-              status,
-            }) => (
-              <>
-                <View style={styles.inputContainer}>
-                  <View style={styles.iconInputWrapper}>
-                    <MaterialIcons
-                      name="person"
-                      size={24}
-                      color="rgba(255,255,255,0.8)"
-                      style={styles.icon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder={t("username")}
-                      placeholderTextColor="rgba(255,255,255,0.8)"
-                      value={values.username}
-                      onChangeText={handleChange("username")}
-                      onBlur={handleBlur("username")}
-                      autoCapitalize="none"
-                    />
-                  </View>
-                  {touched.username && errors.username && (
-                    <Text style={styles.errorText}>{errors.username}</Text>
-                  )}
-                </View>
-                <View style={styles.inputContainer}>
-                  <View style={styles.iconInputWrapper}>
-                    <MaterialIcons
-                      name="lock"
-                      size={24}
-                      color="rgba(255,255,255,0.8)"
-                      style={styles.icon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder={t("password")}
-                      placeholderTextColor="rgba(255,255,255,0.8)"
-                      value={values.password}
-                      onChangeText={handleChange("password")}
-                      onBlur={handleBlur("password")}
-                      secureTextEntry
-                      autoCapitalize="none"
-                    />
-                  </View>
-                  {touched.password && errors.password && (
-                    <Text style={styles.errorText}>{errors.password}</Text>
-                  )}
-                </View>
-                {status && status.error && (
-                  <Text style={styles.errorText}>{status.error}</Text>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("../assets/images/farhannetLogo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+
+            <Text style={styles.title}>{t("welcome-back")}</Text>
+            <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>{t("username")}</Text>
+              <View
+                style={[
+                  styles.iconInputWrapper,
+                  focusedField === "username" && styles.inputWrapperFocused,
+                  errors.username && styles.inputWrapperError,
+                ]}
+              >
+                <MaterialIcons
+                  name="person"
+                  size={24}
+                  color={
+                    focusedField === "username"
+                      ? colors.primary
+                      : colors.textMuted
+                  }
+                  style={styles.icon}
+                />
+                <TextInput
+                  style={getInputStyle("username")}
+                  placeholder={t("enter-username")}
+                  placeholderTextColor={colors.textMuted}
+                  value={values.username}
+                  onChangeText={handleChange("username")}
+                  autoCapitalize="none"
+                  onFocus={() => setFocusedField("username")}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </View>
+              <View style={styles.errorContainer}>
+                {errors.username && (
+                  <Text style={styles.errorText}>{errors.username}</Text>
                 )}
-                {status && status.success && (
-                  <Text style={styles.successText}>{status.success}</Text>
-                )}
-                <Button
-                  mode="contained"
-                  onPress={handleSubmit}
-                  style={styles.paperButton}
-                  contentStyle={styles.buttonContent}
-                  disabled={isSubmitting}
-                  buttonColor="#1E90FF"
+              </View>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>{t("password")}</Text>
+              <View
+                style={[
+                  styles.iconInputWrapper,
+                  focusedField === "password" && styles.inputWrapperFocused,
+                  errors.password && styles.inputWrapperError,
+                ]}
+              >
+                <MaterialIcons
+                  name="lock"
+                  size={24}
+                  color={
+                    focusedField === "password"
+                      ? colors.primary
+                      : colors.textMuted
+                  }
+                  style={styles.icon}
+                />
+                <TextInput
+                  style={getInputStyle("password")}
+                  placeholder={t("enter-password")}
+                  placeholderTextColor={colors.textMuted}
+                  value={values.password}
+                  onChangeText={handleChange("password")}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.visibilityToggle}
                 >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    t("login")
-                  )}
-                </Button>
-              </>
-            )}
-          </Formik>
-        </Animated.View>
+                  <MaterialIcons
+                    name={showPassword ? "visibility-off" : "visibility"}
+                    size={24}
+                    color={colors.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.errorContainer}>
+                {errors.password && (
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.statusContainer}>
+              {status && status.error && (
+                <Text style={styles.errorText}>{status.error}</Text>
+              )}
+              {status && status.success && (
+                <Text style={styles.successText}>{status.success}</Text>
+              )}
+            </View>
+
+            <Button
+              mode="contained"
+              onPress={handleSubmit}
+              style={styles.paperButton}
+              contentStyle={styles.buttonContent}
+              disabled={isSubmitting}
+              buttonColor={colors.primary}
+              labelStyle={styles.buttonLabel}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.background} />
+              ) : (
+                t("login")
+              )}
+            </Button>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
-  innerContainer: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: 40,
+  },
+  innerContainer: {
+    width: "100%",
     paddingHorizontal: 30,
   },
+  logoContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  logo: {
+    width: 150,
+    height: 80,
+  },
   title: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 10,
+    fontSize: 28,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 18,
-    color: "rgba(255,255,255,0.9)",
-    marginBottom: 40,
+    fontSize: 16,
+    color: colors.textMuted,
+    marginBottom: 30,
+    textAlign: "center",
   },
   inputContainer: {
     width: "100%",
-    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.text,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   iconInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 25,
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
     paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    height: 56,
+  },
+  inputWrapperFocused: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+    backgroundColor: `${colors.secondary}80`,
+  },
+  inputWrapperError: {
+    borderColor: colors.danger,
   },
   icon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    color: "#fff",
-    paddingVertical: 15,
+    color: colors.text,
     fontSize: 16,
+    height: "100%",
+  },
+  inputFocused: {
+    color: colors.primary,
+  },
+  visibilityToggle: {
+    padding: 8,
+  },
+  errorContainer: {
+    minHeight: 10,
+    justifyContent: "center",
+    paddingLeft: 5,
+    marginTop: 4,
+  },
+  statusContainer: {
+    minHeight: 24,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 16,
   },
   errorText: {
-    color: "#FF3B30",
+    color: colors.danger,
     fontSize: 14,
-    marginTop: 5,
+    textAlign: "center",
   },
   successText: {
-    color: "#4BB543",
+    color: colors.accent,
     fontSize: 14,
-    marginTop: 5,
+    textAlign: "center",
   },
   paperButton: {
-    marginTop: 10,
-    borderRadius: 25,
+    borderRadius: 12,
     width: "100%",
+    marginBottom: 24,
   },
   buttonContent: {
-    paddingVertical: 5,
+    paddingVertical: 8,
+    height: 56,
   },
-  forgotPassword: {
-    color: "#fff",
-    fontSize: 14,
-    marginTop: 20,
-    textDecorationLine: "underline",
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.5,
   },
 });
 
