@@ -291,9 +291,7 @@ const Index = () => {
       },
       headerTitleStyle: {
         color: colors.text,
-        fontWeight: "600",
       },
-      headerShadowVisible: false,
     });
   }, [navigation, t]);
 
