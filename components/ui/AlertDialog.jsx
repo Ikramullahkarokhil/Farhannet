@@ -1,39 +1,27 @@
-// components/AlertDialog.js
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
-import Modal from "react-native-modal";
+import { View, Text, TouchableOpacity, Modal, StyleSheet } from "react-native";
+import colors from "../theme";
 
-const AlertDialog = ({
-  visible,
-  title,
-  message,
-  onDismiss,
-  onConfirm,
-  confirmText = "OK",
-  cancelText = "Cancel",
-  animationIn = "zoomIn",
-  animationOut = "zoomOut",
-}) => {
+const AlertDialog = ({ visible, title, message, onConfirm, onCancel }) => {
   return (
     <Modal
-      isVisible={visible}
-      onBackdropPress={onDismiss}
-      onBackButtonPress={onDismiss}
-      animationIn={animationIn}
-      animationOut={animationOut}
-      backdropOpacity={0}
+      transparent={true}
+      animationType="fade"
+      visible={visible}
+      onRequestClose={onCancel}
     >
-      <View style={[styles.dialog]}>
-        <Text style={[styles.title]}>{title}</Text>
-        <Text style={[styles.message]}>{message}</Text>
-        <View style={styles.buttonsContainer}>
-          <Button mode="outlined" onPress={onDismiss} style={[styles.button]}>
-            {cancelText}
-          </Button>
-          <Button mode="contained" onPress={onConfirm} style={styles.button}>
-            {confirmText}
-          </Button>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalMessage}>{message}</Text>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.button} onPress={onCancel}>
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={onConfirm}>
+              <Text style={styles.buttonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -41,31 +29,48 @@ const AlertDialog = ({
 };
 
 const styles = StyleSheet.create({
-  dialog: {
-    width: "100%",
-    borderRadius: 8,
-    padding: 20,
-    backgroundColor: "white",
-    alignSelf: "center",
-    elevation: 100,
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  title: {
+  modalContainer: {
+    width: "80%",
+    backgroundColor: colors.background,
+    borderRadius: 10,
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
+    color: colors.text,
     marginBottom: 10,
   },
-  message: {
+  modalMessage: {
     fontSize: 14,
+    color: colors.textMuted,
     marginBottom: 20,
+    textAlign: "center",
   },
-  buttonsContainer: {
+  buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
   },
   button: {
-    marginLeft: 10,
-    width: "45%",
+    flex: 1,
+    padding: 10,
+    marginHorizontal: 5,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "600",
   },
 });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,8 +9,9 @@ import {
   SafeAreaView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import colors from "../../components/theme";
+import colors from "../../../components/theme";
 import { useTranslation } from "react-i18next";
+import { useNavigation } from "expo-router";
 
 const SpeedTest = () => {
   const [isTesting, setIsTesting] = useState(false);
@@ -21,10 +22,19 @@ const SpeedTest = () => {
   const [currentTest, setCurrentTest] = useState("none");
   const [progress, setProgress] = useState(0);
   const { t } = useTranslation();
+  const navigation = useNavigation();
 
-  useEffect(() => {
-    // No animation cleanup needed now.
-  }, []);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: t("speed-test"),
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.text,
+      },
+    });
+  }, [navigation, t]);
 
   const startTest = async () => {
     try {

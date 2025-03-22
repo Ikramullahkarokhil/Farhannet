@@ -24,6 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
+import apiStore from "../../../components/api/apiStore";
 
 // Detect screen width for responsiveness
 const { width } = Dimensions.get("window");
@@ -52,6 +53,7 @@ const ChangePassword = () => {
   const [focusedField, setFocusedField] = useState(null);
   const navigation = useNavigation();
   const { t } = useTranslation();
+  const { changePassword, user } = apiStore();
 
   // Reanimated animation values
   const fadeAnim = useSharedValue(0);
@@ -130,7 +132,10 @@ const ChangePassword = () => {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await changePassword({
+        customerId: user.id,
+        password: newPassword,
+      });
       setIsSuccess(true);
       setNewPassword("");
       setConfirmPassword("");

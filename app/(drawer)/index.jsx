@@ -15,11 +15,9 @@ import {
   Image,
   Platform,
   StatusBar,
-  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { availablePackages, updates } from "../../data";
 import { useTranslation } from "react-i18next";
 import Animated, {
   useSharedValue,
@@ -33,6 +31,7 @@ import Animated, {
 import apiStore from "../../components/api/apiStore";
 import colors from "../../components/theme";
 import NetInfo from "@react-native-community/netinfo";
+import { Dialog, Portal, Button } from "react-native-paper"; // Import Dialog and related components
 
 // Reusable Full-Row Tile Component, memoized for performance
 const FullRowTile = memo(
@@ -112,7 +111,7 @@ const NoUserView = () => {
         <Text style={styles.noUserText}>{t("not-logged-in")}</Text>
         <TouchableOpacity
           style={styles.getPackageButton}
-          onPress={() => router.navigate("screens/Login")}
+          onPress={() => router.navigate("/Login")}
         >
           <Text style={styles.getPackageButtonText}>{t("login")}</Text>
         </TouchableOpacity>
@@ -128,24 +127,17 @@ const Index = () => {
   const progressAnim = useSharedValue(0);
   const headerOpacity = useSharedValue(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [visible, setVisible] = useState(false); // State to manage Dialog visibility
 
   const {
     categories,
     activePackage,
     fetchCustomerPackage,
     fetchCustomerComplaints,
+    fetchUpdates,
+    updates,
     user,
   } = apiStore();
-
-  // If user is null, render the NoUserView component
-  if (!user) {
-    return <NoUserView />;
-  }
-
-  const numOfCategories = React.useMemo(
-    () => categories.map((item) => item.id),
-    [categories]
-  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -167,6 +159,11 @@ const Index = () => {
       },
     });
   }, [navigation]);
+
+  const numOfCategories = React.useMemo(
+    () => categories.map((item) => item.id),
+    [categories]
+  );
 
   useEffect(() => {
     if (activePackage) {
@@ -204,12 +201,13 @@ const Index = () => {
       await Promise.all([
         fetchCustomerPackage(user.id),
         fetchCustomerComplaints(user.id),
+        fetchUpdates(),
       ]);
 
       headerOpacity.value = withTiming(1, { duration: 300 });
       setRefreshing(false);
     }
-  }, []);
+  }, [user, fetchCustomerPackage, fetchCustomerComplaints, headerOpacity]);
 
   const daysLeft = activePackage
     ? Math.ceil(
@@ -218,7 +216,6 @@ const Index = () => {
       )
     : 0;
   const isExpired = activePackage?.status === "Expire";
-  // New warning condition: when not expired and exactly 3 days remain
   const isWarning =
     activePackage && activePackage.status !== "Expire" && daysLeft <= 3;
 
@@ -237,71 +234,77 @@ const Index = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Current Package Section without Animation */}
-        <View
-          style={[
-            styles.section,
-            isExpired && styles.expiredCard,
-            isWarning && styles.warningCard,
-          ]}
-        >
-          <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
-          {activePackage ? (
-            <View style={styles.currentPackageContainer}>
-              <View style={styles.currentPackage}>
-                <View style={styles.packageHeader}>
-                  <View style={styles.packageInfo}>
-                    <Text style={styles.packageName} numberOfLines={2}>
-                      {activePackage.package}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.packageStats,
-                        isExpired && styles.expiredText,
-                      ]}
-                    >
-                      {isExpired
-                        ? t("expired")
-                        : `${daysLeft} ${t("days-left")}`}
-                    </Text>
+        {/* Render current package section only if a user exists */}
+        {user && (
+          <View
+            style={[
+              styles.section,
+              isExpired && styles.expiredCard,
+              isWarning && styles.warningCard,
+            ]}
+          >
+            <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
+            {activePackage ? (
+              <View style={styles.currentPackageContainer}>
+                <View style={styles.currentPackage}>
+                  <View style={styles.packageHeader}>
+                    <View style={styles.packageInfo}>
+                      <Text style={styles.packageName} numberOfLines={2}>
+                        {activePackage.package}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.packageStats,
+                          isExpired && styles.expiredText,
+                        ]}
+                      >
+                        {isExpired
+                          ? t("expired")
+                          : `${daysLeft} ${t("days-left")}`}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.progressContainer}>
-                  <Animated.View
-                    style={[
-                      styles.progressBar,
-                      progressStyle,
-                      isExpired && styles.expiredProgressBar,
-                      isWarning && styles.warningProgressBar,
-                    ]}
-                  />
-                </View>
+                  <View style={styles.progressContainer}>
+                    <Animated.View
+                      style={[
+                        styles.progressBar,
+                        progressStyle,
+                        isExpired && styles.expiredProgressBar,
+                        isWarning && styles.warningProgressBar,
+                      ]}
+                    />
+                  </View>
 
-                <Text style={styles.expiryDate}>
-                  {isExpired
-                    ? `${t("expired")}: ${activePackage.expiry_date}`
-                    : `${t("expires")}: ${activePackage.expiry_date}`}
-                </Text>
+                  <Text style={styles.expiryDate}>
+                    {isExpired
+                      ? `${t("expired")}: ${activePackage.expiry_date}`
+                      : `${t("expires")}: ${activePackage.expiry_date}`}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Feather name="alert-circle" size={24} color={colors.textMuted} />
-              <Text style={styles.emptyStateText}>
-                {t("no-active-package")}
-              </Text>
-              <TouchableOpacity
-                style={styles.getPackageButton}
-                onPress={() => router.navigate("screens/CategoriesList")}
-              >
-                <Text style={styles.getPackageButtonText}>
-                  {t("get-package")}
+            ) : (
+              <View style={styles.emptyState}>
+                <Feather
+                  name="alert-circle"
+                  size={24}
+                  color={colors.textMuted}
+                />
+                <Text style={styles.emptyStateText}>
+                  {t("no-active-package")}
                 </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+                <TouchableOpacity
+                  style={styles.getPackageButton}
+                  onPress={() => router.navigate("screens/CategoriesList")}
+                >
+                  <Text style={styles.getPackageButtonText}>
+                    {t("get-package")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Tiles Section */}
         <View style={styles.tilesContainer}>
@@ -316,16 +319,28 @@ const Index = () => {
           <FullRowTile
             icon="bell"
             title={t("updates")}
-            count={updates.length}
+            count={updates.total}
             color={colors.primary}
-            onPress={() => router.navigate("screens/Updates")}
+            onPress={() => {
+              if (!user) {
+                setVisible(true);
+              } else {
+                router.navigate("screens/Updates");
+              }
+            }}
             index={1}
           />
           <FullRowTile
             icon="message-circle"
             title={t("feedback")}
             color="#6366F1"
-            onPress={() => router.navigate("screens/Feadback")}
+            onPress={() => {
+              if (!user) {
+                setVisible(true); // Show Dialog instead of Alert
+              } else {
+                router.navigate("screens/Feadback");
+              }
+            }}
             index={2}
           />
           <FullRowTile
@@ -337,6 +352,27 @@ const Index = () => {
           />
         </View>
       </ScrollView>
+
+      {/* Dialog for showing login alert */}
+      <Portal>
+        <Dialog visible={visible} onDismiss={() => setVisible(false)}>
+          <Dialog.Title>{t("login-required")}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{t("please-login-to-access-this-feature")}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setVisible(false)}>{t("cancel")}</Button>
+            <Button
+              onPress={() => {
+                router.navigate("/Login");
+                setVisible(false);
+              }}
+            >
+              {t("login")}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 };
@@ -523,7 +559,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // New styles for loading placeholder
   placeholderContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -535,7 +570,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
   },
-  // New styles for no user view
   noUserContainer: {
     flex: 1,
     alignItems: "center",

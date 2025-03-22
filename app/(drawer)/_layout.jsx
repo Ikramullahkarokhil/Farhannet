@@ -18,17 +18,9 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
-
-const colors = {
-  primary: "#0066FF",
-  secondary: "#F0F4F8",
-  text: "#1A202C",
-  textMuted: "#6B7280",
-  background: "#FFFFFF",
-  accent: "#2C9E9A",
-  danger: "#E53E3E",
-  border: "#DDE4EB",
-};
+import { Dialog, Portal, Button, PaperProvider } from "react-native-paper";
+import colors from "../../components/theme";
+import { MaterialIcons } from "@expo/vector-icons";
 
 // HeaderRight with Reanimated 3
 const HeaderRight = () => {
@@ -68,6 +60,10 @@ const CustomDrawerContent = (props) => {
   const { t, i18n } = useTranslation();
   const { showActionSheetWithOptions } = useActionSheet();
   const { user, logout } = apiStore();
+  const [visible, setVisible] = React.useState(false);
+
+  const showDialog = () => setVisible(true);
+  const hideDialog = () => setVisible(false);
 
   const changeLanguage = async (lng) => {
     await i18n.changeLanguage(lng);
@@ -75,7 +71,11 @@ const CustomDrawerContent = (props) => {
   };
 
   const handleChangePassword = async () => {
-    router.navigate("/screens/ChangePassword");
+    if (!user) {
+      showDialog();
+    } else {
+      router.navigate("/screens/ChangePassword");
+    }
   };
 
   const handleLogout = async () => {
@@ -112,95 +112,139 @@ const CustomDrawerContent = (props) => {
   };
 
   return (
-    <View style={styles.drawerContainer}>
-      <DrawerContentScrollView {...props}>
-        <View style={styles.drawerHeader}>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person-circle" size={60} color={colors.primary} />
-          </View>
-          <View>
-            {user ? (
-              <>
+    <PaperProvider>
+      <View style={styles.drawerContainer}>
+        <DrawerContentScrollView {...props}>
+          <View style={styles.drawerHeader}>
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person-circle" size={60} color={colors.primary} />
+            </View>
+            <View>
+              {user ? (
+                <>
+                  <Text style={styles.drawerHeaderText} numberOfLines={1}>
+                    {user.first_name} {user.last_name}
+                  </Text>
+
+                  <Text style={styles.drawerSubText}>@{user.username}</Text>
+                </>
+              ) : (
                 <Text style={styles.drawerHeaderText} numberOfLines={1}>
-                  {user.first_name}
+                  farhanict.com
                 </Text>
-                <Text style={styles.drawerSubText}>@{user.username}</Text>
-              </>
-            ) : (
-              <Text style={styles.drawerHeaderText}>farhanict.com</Text>
-            )}
+              )}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.seperator} />
+          <View style={styles.seperator} />
 
-        <DrawerItemList {...props} />
+          <DrawerItemList {...props} />
 
-        <View style={styles.seperator} />
+          <DrawerItem
+            label={t("speed-test")}
+            icon={({ size, color }) => (
+              <Ionicons name="speedometer-outline" size={size} color={color} />
+            )}
+            onPress={() => router.navigate("/screens/SpeedTest")}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
 
-        <DrawerItem
-          label={t("language")}
-          icon={({ size, color }) => (
-            <Ionicons name="language" size={size} color={color} />
-          )}
-          onPress={handleLanguageChange}
-          style={styles.languageButton}
-          labelStyle={styles.languageLabel}
-        />
+          <View style={styles.seperator} />
 
-        <DrawerItem
-          label={t("change-password")}
-          icon={({ size, color }) => (
-            <Ionicons name="lock-closed-outline" size={size} color={color} />
-          )}
-          onPress={handleChangePassword}
-          style={styles.languageButton}
-          labelStyle={styles.languageLabel}
-        />
+          <DrawerItem
+            label={t("language")}
+            icon={({ size, color }) => (
+              <Ionicons name="language" size={size} color={color} />
+            )}
+            onPress={handleLanguageChange}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
 
-        <View style={styles.seperator} />
+          <DrawerItem
+            label={t("change-password")}
+            icon={({ size, color }) => (
+              <Ionicons name="lock-closed-outline" size={size} color={color} />
+            )}
+            onPress={handleChangePassword}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
+          <View style={styles.seperator} />
 
-        <DrawerItem
-          label={t("contact-us")}
-          icon={({ size, color }) => (
-            <Image
-              source={require("../../assets/icons/contact-us.png")}
-              style={{ width: size, height: size, tintColor: color }}
-            />
-          )}
-          onPress={() => {
-            router.navigate("/screens/Contact");
-          }}
-          style={styles.languageButton}
-          labelStyle={styles.languageLabel}
-        />
+          <DrawerItem
+            label={t("internet-usage")}
+            icon={({ size, color }) => (
+              // <Ionicons name="lock-closed-outline" size={size} color={color} />
+              <MaterialIcons name="data-usage" size={size} color={color} />
+            )}
+            onPress={() => router.navigate("/screens/InternetUsage")}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
 
-        <DrawerItem
-          label={t("about-us")}
-          icon={({ size, color }) => (
-            <Image
-              source={require("../../assets/icons/about-us.png")}
-              style={{ width: size, height: size, tintColor: color }}
-            />
-          )}
-          onPress={() => {
-            router.navigate("/screens/About");
-          }}
-          style={styles.languageButton}
-          labelStyle={styles.languageLabel}
-        />
+          <View style={styles.seperator} />
 
-        <DrawerItem
-          label={t("logout")}
-          icon={({ size, color }) => (
-            <Ionicons name="log-out-outline" size={size} color={color} />
-          )}
-          onPress={handleLogout}
-          style={styles.logoutItem}
-          labelStyle={styles.logoutLabel}
-        />
-      </DrawerContentScrollView>
-    </View>
+          <DrawerItem
+            label={t("contact-us")}
+            icon={({ size, color }) => (
+              <Image
+                source={require("../../assets/icons/contact-us.png")}
+                style={{ width: size, height: size, tintColor: color }}
+              />
+            )}
+            onPress={() => {
+              router.navigate("/screens/Contact");
+            }}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
+
+          <DrawerItem
+            label={t("about-us")}
+            icon={({ size, color }) => (
+              <Image
+                source={require("../../assets/icons/about-us.png")}
+                style={{ width: size, height: size, tintColor: color }}
+              />
+            )}
+            onPress={() => {
+              router.navigate("/screens/About");
+            }}
+            style={styles.languageButton}
+            labelStyle={styles.languageLabel}
+          />
+
+          <View style={styles.seperator} />
+
+          <DrawerItem
+            label={t("logout")}
+            icon={({ size, color }) => (
+              <Ionicons name="log-out-outline" size={size} color={color} />
+            )}
+            onPress={handleLogout}
+            style={styles.logoutItem}
+            labelStyle={styles.logoutLabel}
+          />
+        </DrawerContentScrollView>
+      </View>
+
+      <Portal>
+        <Dialog visible={visible} onDismiss={hideDialog}>
+          <Dialog.Title>{t("login-required")}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{t("please-login-to-access-this-feature")}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>{t("cancel")}</Button>
+            <Button onPress={() => router.replace("Login")}>
+              {t("login")}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </PaperProvider>
   );
 };
 
@@ -240,14 +284,6 @@ const Layout = () => {
           title: t("home"),
           drawerLabel: t("home"),
           drawerIcon: (props) => renderIcon({ name: "home", ...props }),
-        }}
-      />
-      <Drawer.Screen
-        name="SpeedTest"
-        options={{
-          title: t("speed-test"),
-          drawerLabel: t("speed-test"),
-          drawerIcon: (props) => renderIcon({ name: "speedometer", ...props }),
         }}
       />
     </Drawer>

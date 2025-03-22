@@ -26,15 +26,14 @@ const Layout = () => {
   const responseListener = useRef();
   const appInitialized = useRef(false);
 
-  // Destructure only what's needed from the store
   const {
     fetchAllPakages,
     fetchCustomerPackage,
     fetchCustomerComplaints,
+    fetchUpdates,
     user,
   } = apiStore();
 
-  // Check internet connection before fetching data
   useEffect(() => {
     const getData = async () => {
       const netState = await NetInfo.fetch();
@@ -45,6 +44,7 @@ const Layout = () => {
         if (user) {
           await Promise.all([
             fetchCustomerPackage(user.id),
+            fetchUpdates(),
             fetchCustomerComplaints(user.id),
           ]);
         }

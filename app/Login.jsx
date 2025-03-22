@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -116,12 +116,7 @@ const Login = () => {
             JSON.stringify(sessionData)
           );
 
-          // Show success message briefly before navigating
-          setStatus({ success: response.message || t("login-successful") });
-
-          setTimeout(() => {
-            router.replace("/(drawer)");
-          }, 500);
+          router.replace("/(drawer)");
         }
       } catch (error) {
         console.error("Login error:", error);
@@ -146,6 +141,10 @@ const Login = () => {
     styles.input,
     focusedField === field && styles.inputFocused,
   ];
+
+  const handleSkip = () => {
+    router.replace("(drawer)");
+  };
 
   return (
     <View style={styles.container}>
@@ -283,6 +282,15 @@ const Login = () => {
               ) : (
                 t("login")
               )}
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={handleSkip}
+              textColor={colors.text}
+              labelStyle={styles.buttonLabel}
+              style={[styles.paperButton, { borderColor: colors.primary }]}
+            >
+              {t("skip")}
             </Button>
           </Animated.View>
         </ScrollView>

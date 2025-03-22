@@ -17,6 +17,7 @@ import {
   Platform,
   Pressable,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -29,6 +30,7 @@ import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import colors from "../../../components/theme";
 import apiStore from "../../../components/api/apiStore";
+import { Image } from "react-native";
 
 // Extracted helper function so it won't be recreated on every render.
 const getStatusColor = (status) => {
@@ -79,9 +81,14 @@ const Message = memo(({ item, index, messages }) => {
       >
         {!item.isUser && (
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
+            {/* <View style={styles.avatar}>
               <Text style={styles.avatarText}>ISP</Text>
-            </View>
+            </View> */}
+            <Image
+              source={require("../../../assets/images/farhannetLogo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
         )}
         <View
@@ -182,8 +189,9 @@ const Index = () => {
   const navigation = useNavigation();
   const flatListRef = useRef(null);
   const inputRef = useRef(null);
-  const { complaints, addComplain, user } = apiStore();
+  const { complaints, addComplain, user, fetchCustomerComplaints } = apiStore();
   const shouldScrollToBottomRef = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const getStatusMessage = useCallback((status) => {
     switch (status) {
@@ -400,6 +408,12 @@ const Index = () => {
     }
   }, [combinedMessages]);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchCustomerComplaints(user.id);
+    setRefreshing(false);
+  };
+
   return (
     <View style={styles.outerContainer}>
       <KeyboardAvoidingView
@@ -425,6 +439,14 @@ const Index = () => {
               removeClippedSubviews={Platform.OS === "android"}
               onContentSizeChange={scrollToBottom}
               onLayout={scrollToBottom}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={[colors.primary]} // Customize the refresh control colors
+                  tintColor={colors.primary} // Customize the refresh control spinner color
+                />
+              }
             />
             {combinedMessages.length > 10 && (
               <Pressable
@@ -508,6 +530,12 @@ const styles = StyleSheet.create({
     backgroundColor: `${colors.primary}20`,
     justifyContent: "center",
     alignItems: "center",
+  },
+  logo: {
+    height: 35,
+    width: 35,
+    borderRadius: 50,
+    backgroundColor: colors.secondary,
   },
   avatarText: {
     fontSize: 12,

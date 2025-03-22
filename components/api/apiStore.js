@@ -16,6 +16,7 @@ const initialState = {
   categories: [],
   activePackage: {},
   complaints: [],
+  updates: [],
   loginLoading: false,
   loginError: null,
   loading: false,
@@ -85,6 +86,33 @@ const apiStore = create(
           const response = await api.post(
             `/customer/complaint-add?customer_id=${customerId}&complain=${complain}`
           );
+          set({ loading: false });
+
+          return response.data;
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
+      fetchUpdates: async () => {
+        try {
+          set({ loading: true });
+          const response = await api.get(`/ict/updates`);
+          set({ updates: response.data, loading: false });
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
+      changePassword: async ({ customerId, password }) => {
+        try {
+          set({ loading: true });
+          const response = await api.post(
+            `/customer/change-password?customer_id=${customerId}&password=${password}`
+          );
+          set({ loading: false });
           return response.data;
         } catch (error) {
           const errorMessage = error.response?.data?.message || error.message;
@@ -105,11 +133,8 @@ const apiStore = create(
         }
       },
 
-      resetStore: () => {
-        set(initialState);
-      },
       logout: () => {
-        set({ user: null });
+        set(initialState);
       },
     }),
 
@@ -121,6 +146,7 @@ const apiStore = create(
         user: state.user,
         activePackage: state.activePackage,
         categories: state.categories,
+        updates: state.updates,
       }),
     }
   )

@@ -81,5 +81,10 @@
   "change-password": "Change Password",
   "expires": "Expires",
   "support": "Support",
-  "expired": "Expired"
+  "expired": "Expired",
+  "skip": "Skip",
+  "login-required": "Login Required",
+  "please-login-to-access-this-feature": "Please login to access this feature",
+  "cancel": "Cancel",
+  "internet-usage": "Internet Usage"
 }
