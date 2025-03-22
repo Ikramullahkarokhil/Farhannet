@@ -83,7 +83,7 @@ const apiStore = create(
         try {
           set({ loading: true });
           const response = await api.post(
-            `/consumer/complaint-add?customer_id=${customerId}&complain=${complain}`
+            `/customer/complaint-add?customer_id=${customerId}&complain=${complain}`
           );
           return response.data;
         } catch (error) {
@@ -117,8 +117,10 @@ const apiStore = create(
       name: "user-storage",
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        allPakages: state.allPakages,
+        packagesData: state.packagesData,
         user: state.user,
+        activePackage: state.activePackage,
+        categories: state.categories,
       }),
     }
   )

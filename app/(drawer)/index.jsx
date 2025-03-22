@@ -15,12 +15,12 @@ import {
   Image,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { availablePackages, updates } from "../../data";
 import { useTranslation } from "react-i18next";
-import { setBackgroundColorAsync } from "expo-navigation-bar";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,6 +32,7 @@ import Animated, {
 } from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
 import colors from "../../components/theme";
+import NetInfo from "@react-native-community/netinfo";
 
 // Reusable Full-Row Tile Component, memoized for performance
 const FullRowTile = memo(
@@ -98,6 +99,28 @@ const FullRowTile = memo(
   }
 );
 
+// No user component
+const NoUserView = () => {
+  const { t } = useTranslation();
+  const router = useRouter();
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      <View style={styles.noUserContainer}>
+        <Feather name="user-x" size={50} color={colors.textMuted} />
+        <Text style={styles.noUserText}>{t("not-logged-in")}</Text>
+        <TouchableOpacity
+          style={styles.getPackageButton}
+          onPress={() => router.navigate("screens/Login")}
+        >
+          <Text style={styles.getPackageButtonText}>{t("login")}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 const Index = () => {
   const navigation = useNavigation();
   const router = useRouter();
@@ -109,14 +132,16 @@ const Index = () => {
   const {
     categories,
     activePackage,
-    fetchAllPakages,
     fetchCustomerPackage,
     fetchCustomerComplaints,
-
     user,
   } = apiStore();
 
-  // Memoized list to avoid recalculating on each render
+  // If user is null, render the NoUserView component
+  if (!user) {
+    return <NoUserView />;
+  }
+
   const numOfCategories = React.useMemo(
     () => categories.map((item) => item.id),
     [categories]
@@ -171,16 +196,20 @@ const Index = () => {
   }));
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    headerOpacity.value = withTiming(0.3, { duration: 300 });
+    const netState = await NetInfo.fetch();
+    if (netState.isConnected && user) {
+      setRefreshing(true);
+      headerOpacity.value = withTiming(0.3, { duration: 300 });
 
-    await fetchCustomerPackage(user.id);
-    await fetchAllPakages();
-    await fetchCustomerComplaints(user.id);
+      await Promise.all([
+        fetchCustomerPackage(user.id),
+        fetchCustomerComplaints(user.id),
+      ]);
 
-    headerOpacity.value = withTiming(1, { duration: 300 });
-    setRefreshing(false);
-  }, [fetchCustomerPackage, fetchAllPakages, headerOpacity, user.id]);
+      headerOpacity.value = withTiming(1, { duration: 300 });
+      setRefreshing(false);
+    }
+  }, []);
 
   const daysLeft = activePackage
     ? Math.ceil(
@@ -250,7 +279,9 @@ const Index = () => {
                 </View>
 
                 <Text style={styles.expiryDate}>
-                  {t("expires")}: {activePackage.expiry_date}
+                  {isExpired
+                    ? `${t("expired")}: ${activePackage.expiry_date}`
+                    : `${t("expires")}: ${activePackage.expiry_date}`}
                 </Text>
               </View>
             </View>
@@ -491,6 +522,32 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
+  },
+  // New styles for loading placeholder
+  placeholderContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+    minHeight: 150,
+  },
+  placeholderText: {
+    color: colors.textMuted,
+    marginTop: 12,
+    fontSize: 14,
+  },
+  // New styles for no user view
+  noUserContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  noUserText: {
+    color: colors.textMuted,
+    marginTop: 16,
+    marginBottom: 20,
+    fontSize: 16,
+    textAlign: "center",
   },
 });
 

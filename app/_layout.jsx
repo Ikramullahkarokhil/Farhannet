@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import NetInfo from "@react-native-community/netinfo";
 import { Stack, useRouter } from "expo-router";
 import { Provider as PaperProvider } from "react-native-paper";
 import { StatusBar } from "expo-status-bar";
@@ -12,6 +13,7 @@ import i18next from "../locales/languageConfig";
 import * as Notifications from "expo-notifications";
 import apiStore from "../components/api/apiStore";
 import colors from "../components/theme";
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
@@ -23,6 +25,8 @@ const Layout = () => {
   const notificationListener = useRef();
   const responseListener = useRef();
   const appInitialized = useRef(false);
+
+  // Destructure only what's needed from the store
   const {
     fetchAllPakages,
     fetchCustomerPackage,
@@ -30,56 +34,27 @@ const Layout = () => {
     user,
   } = apiStore();
 
+  // Check internet connection before fetching data
   useEffect(() => {
-    const getApiData = async () => {
-      await fetchAllPakages();
-    };
-    getApiData();
-  }, []);
-
-  useEffect(() => {
-    async function prepare() {
-      try {
-        await setBackgroundColorAsync(colors.background);
-        try {
-        } catch (notificationError) {
-          console.warn(
-            "Failed to register for push notifications:",
-            notificationError
-          );
+    const getData = async () => {
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected) {
+        await fetchAllPakages().catch((error) =>
+          console.warn("Failed to fetch packages:", error)
+        );
+        if (user) {
+          await Promise.all([
+            fetchCustomerPackage(user.id),
+            fetchCustomerComplaints(user.id),
+          ]);
         }
-
-        // Check saved language
-        const savedLanguage = await AsyncStorage.getItem("language");
-        if (savedLanguage) {
-          i18n.changeLanguage(savedLanguage);
-        }
-
-        // Check session
-        const sessionData = await AsyncStorage.getItem("userSession");
-        if (sessionData) {
-          await fetchCustomerPackage(user.id);
-          await fetchCustomerComplaints(user.id);
-          const { timestamp } = JSON.parse(sessionData);
-          const oneMonth = 30 * 24 * 60 * 60 * 1000;
-
-          if (Date.now() - timestamp < oneMonth) {
-            setIsLoggedIn(true);
-          } else {
-            await AsyncStorage.removeItem("userSession");
-          }
-        }
-      } catch (e) {
-        console.warn("Error preparing app:", e);
-      } finally {
-        // Tell the application to render
-        setAppIsReady(true);
       }
-    }
+    };
 
-    prepare();
-  }, [i18n]);
+    getData();
+  }, [fetchAllPakages, fetchCustomerPackage, fetchCustomerComplaints, user]);
 
+  // Setup notification handlers
   useEffect(() => {
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
@@ -92,18 +67,52 @@ const Layout = () => {
         console.log("Notification response received:", data);
 
         if (data.updateId) {
-          // navigation.navigate('UpdateDetails', { id: data.updateId });
+          // Handle navigation if needed
         }
       });
 
     return () => {
-      // Clean up the listeners
       Notifications.removeNotificationSubscription(
         notificationListener.current
       );
       Notifications.removeNotificationSubscription(responseListener.current);
     };
   }, []);
+
+  // App initialization logic
+  useEffect(() => {
+    const prepare = async () => {
+      try {
+        // Set background color
+        await setBackgroundColorAsync(colors.background);
+
+        // Load saved language
+        const savedLanguage = await AsyncStorage.getItem("language");
+        if (savedLanguage) {
+          i18n.changeLanguage(savedLanguage);
+        }
+
+        // Check user session
+        const sessionData = await AsyncStorage.getItem("userSession");
+        if (sessionData && user) {
+          const { timestamp } = JSON.parse(sessionData);
+          const oneMonth = 30 * 24 * 60 * 60 * 1000;
+
+          if (Date.now() - timestamp < oneMonth) {
+            setIsLoggedIn(true);
+          } else {
+            await AsyncStorage.removeItem("userSession");
+          }
+        }
+      } catch (e) {
+        console.warn("Error preparing app:", e);
+      } finally {
+        setAppIsReady(true);
+      }
+    };
+
+    prepare();
+  }, [i18n, fetchCustomerPackage, fetchCustomerComplaints, user]);
 
   // Handle navigation after app is ready
   useEffect(() => {
@@ -113,16 +122,24 @@ const Layout = () => {
     }
   }, [appIsReady, isLoggedIn, router]);
 
-  // This callback is triggered when the root view layout is complete
+  // Memoize the onLayoutRootView callback
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady) {
-      // This tells the splash screen to hide immediately
       await SplashScreen.hideAsync();
     }
   }, [appIsReady]);
 
+  // Memoize the Stack component configuration
+  const stackScreenOptions = useMemo(
+    () => ({
+      headerTitleAlign: "center",
+      animation: "simple_push",
+    }),
+    []
+  );
+
+  // Don't render until app is ready
   if (!appIsReady) {
-    // Don't render anything until the app is ready
     return null;
   }
 
@@ -132,12 +149,7 @@ const Layout = () => {
         <ActionSheetProvider>
           <PaperProvider>
             <StatusBar style="auto" />
-            <Stack
-              screenOptions={{
-                headerTitleAlign: "center",
-                animation: "simple_push",
-              }}
-            >
+            <Stack screenOptions={stackScreenOptions}>
               <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
               <Stack.Screen
                 name="Login"

@@ -173,7 +173,6 @@ const Login = () => {
               />
             </View>
 
-            <Text style={styles.title}>{t("welcome-back")}</Text>
             <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
 
             <View style={styles.inputContainer}>

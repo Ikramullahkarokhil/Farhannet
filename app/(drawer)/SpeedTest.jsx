@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,17 +7,8 @@ import {
   ActivityIndicator,
   ScrollView,
   SafeAreaView,
-  StatusBar,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-  withRepeat,
-  Easing,
-} from "react-native-reanimated";
 import colors from "../../components/theme";
 import { useTranslation } from "react-i18next";
 
@@ -31,32 +22,12 @@ const SpeedTest = () => {
   const [progress, setProgress] = useState(0);
   const { t } = useTranslation();
 
-  // Reanimated shared values
-  const progressAnim = useSharedValue(0);
-  const glowAnim = useSharedValue(0);
-  const scaleAnim = useSharedValue(1);
-  const glowLoopRef = useRef(null);
-
   useEffect(() => {
-    return () => {
-      progressAnim.value = 0;
-      glowAnim.value = 0;
-      if (glowLoopRef.current) {
-        glowLoopRef.current(); // Cancel the loop
-      }
-    };
+    // No animation cleanup needed now.
   }, []);
-
-  const animateButton = () => {
-    scaleAnim.value = withSequence(
-      withTiming(0.95, { duration: 100 }),
-      withTiming(1, { duration: 100 })
-    );
-  };
 
   const startTest = async () => {
     try {
-      animateButton();
       setIsTesting(true);
       setShowResults(false);
       setDownloadSpeed(0);
@@ -64,31 +35,17 @@ const SpeedTest = () => {
       setPing(0);
       setProgress(0);
 
-      // Start glow animation loop
-      glowAnim.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 800 }),
-          withTiming(0, { duration: 800 })
-        ),
-        -1, // Infinite loop
-        true // Reverse
-      );
-      glowLoopRef.current = () => (glowAnim.value = 0); // Store cancel function
-
       setCurrentTest(t("download"));
       await testDownloadSpeed();
       setProgress(33);
-      updateProgress(33);
 
       setCurrentTest(t("upload"));
       await testUploadSpeed();
       setProgress(66);
-      updateProgress(66);
 
       setCurrentTest(t("ping"));
       await calculatePing();
       setProgress(100);
-      updateProgress(100);
 
       setCurrentTest("none");
       setShowResults(true);
@@ -97,45 +54,40 @@ const SpeedTest = () => {
       alert(`Speed test failed: ${error.message}. Please try again.`);
     } finally {
       setIsTesting(false);
-      glowAnim.value = 0; // Stop glow
-      if (glowLoopRef.current) {
-        glowLoopRef.current();
-      }
-      setTimeout(() => (progressAnim.value = 0), 300);
+      // Reset progress after a short delay if needed.
+      setTimeout(() => setProgress(0), 300);
     }
-  };
-
-  const updateProgress = (value) => {
-    progressAnim.value = withTiming(value, {
-      duration: 500,
-      easing: Easing.linear,
-    });
   };
 
   const testDownloadSpeed = () => {
     return new Promise((resolve, reject) => {
+      // Use a cache buster to avoid caching issues
+      const url = `https://speed.cloudflare.com/__down?bytes=5000000&cb=${Date.now()}`;
       const xhr = new XMLHttpRequest();
-      xhr.open(
-        "GET",
-        "https://speed.cloudflare.com/__down?bytes=5000000",
-        true
-      );
+      xhr.open("GET", url, true);
       xhr.responseType = "blob";
 
       let startTime;
       xhr.onprogress = (event) => {
         if (event.loaded > 0 && !startTime) {
-          startTime = Date.now();
+          // Use performance.now() if available for more precise timing
+          startTime =
+            typeof performance !== "undefined" && performance.now
+              ? performance.now()
+              : Date.now();
         }
       };
 
       xhr.onload = () => {
-        const endTime = Date.now();
+        const endTime =
+          typeof performance !== "undefined" && performance.now
+            ? performance.now()
+            : Date.now();
         if (startTime) {
-          const timeTaken = (endTime - startTime) / 1000;
-          const fileSize = 10; // 10MB file
-          const downloadSpeed = (fileSize * 8) / timeTaken;
-          setDownloadSpeed(downloadSpeed.toFixed(1));
+          const timeTaken = (endTime - startTime) / 1000; // seconds
+          const fileSizeMB = 5; // Downloading 5,000,000 bytes = 5 MB
+          const speed = (fileSizeMB * 8) / timeTaken; // Mbps calculation
+          setDownloadSpeed(speed.toFixed(1));
           resolve();
         } else {
           reject(new Error("Download did not start"));
@@ -159,14 +111,20 @@ const SpeedTest = () => {
       let startTime;
       xhr.upload.onprogress = (event) => {
         if (event.loaded > 0 && !startTime) {
-          startTime = Date.now();
+          startTime =
+            typeof performance !== "undefined" && performance.now
+              ? performance.now()
+              : Date.now();
         }
         if (event.loaded === event.total) {
-          const endTime = Date.now();
-          const timeTaken = (endTime - startTime) / 1000;
-          const fileSize = event.total / (1024 * 1024); // Size in MB
-          const uploadSpeed = (fileSize * 8) / timeTaken; // Convert to Mbps
-          setUploadSpeed(uploadSpeed.toFixed(1));
+          const endTime =
+            typeof performance !== "undefined" && performance.now
+              ? performance.now()
+              : Date.now();
+          const timeTaken = (endTime - startTime) / 1000; // seconds
+          const fileSizeMB = event.total / (1024 * 1024); // in MB
+          const speed = (fileSizeMB * 8) / timeTaken; // Mbps
+          setUploadSpeed(speed.toFixed(1));
           resolve();
         }
       };
@@ -182,10 +140,10 @@ const SpeedTest = () => {
 
   const calculatePing = async () => {
     const pingTimes = [];
-    const numTests = 3;
+    const numTests = 5; // Increased number of tests for a more stable average
     for (let i = 0; i < numTests; i++) {
-      const startTime = Date.now();
       try {
+        const startTime = Date.now();
         await fetch("https://speed.cloudflare.com", { method: "HEAD" });
         const endTime = Date.now();
         pingTimes.push(endTime - startTime);
@@ -202,20 +160,6 @@ const SpeedTest = () => {
     }
   };
 
-  // Animated styles
-  const progressStyle = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: `${progressAnim.value * 3.6}deg` },
-      { scale: scaleAnim.value },
-    ],
-    shadowRadius: glowAnim.value * 8,
-    shadowOpacity: glowAnim.value,
-  }));
-
-  const progressBarStyle = useAnimatedStyle(() => ({
-    width: `${progressAnim.value}%`,
-  }));
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -229,7 +173,7 @@ const SpeedTest = () => {
         </View>
 
         <View style={styles.progressContainer}>
-          <Animated.View style={[styles.progressCircle, progressStyle]}>
+          <View style={styles.progressCircle}>
             <TouchableOpacity
               onPress={startTest}
               disabled={isTesting}
@@ -264,7 +208,7 @@ const SpeedTest = () => {
                 )}
               </View>
             </TouchableOpacity>
-          </Animated.View>
+          </View>
 
           {isTesting && (
             <View style={styles.testStatusCard}>
@@ -274,7 +218,7 @@ const SpeedTest = () => {
                 {currentTest === "ping" && t("testing-ping")}
               </Text>
               <View style={styles.progressBarContainer}>
-                <Animated.View style={[styles.progressBar, progressBarStyle]} />
+                <View style={[styles.progressBar, { width: `${progress}%` }]} />
               </View>
             </View>
           )}
@@ -446,8 +390,7 @@ const styles = StyleSheet.create({
   },
   testMessage: {
     fontSize: 16,
-    color: colors.primary,
-    fontWeight: "600",
+    color: colors.text,
     marginBottom: 10,
     textAlign: "center",
   },
@@ -490,7 +433,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: `${colors.primary}19`, // 10% opacity
+    backgroundColor: `${colors.primary}19`,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,

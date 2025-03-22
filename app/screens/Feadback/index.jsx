@@ -15,7 +15,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
   Pressable,
   ActivityIndicator,
 } from "react-native";
@@ -403,7 +402,6 @@ const Index = () => {
 
   return (
     <View style={styles.outerContainer}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

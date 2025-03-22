@@ -111,18 +111,16 @@ const Index = () => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={loading ? Array(6).fill({}) : data}
+        data={data}
         renderItem={renderItem}
-        keyExtractor={(item, index) =>
-          loading ? `skeleton-${index}` : item.id?.toString() || `item-${index}`
-        }
+        keyExtractor={(item, index) => item.id?.toString() || `item-${index}`}
         contentContainerStyle={styles.listContent}
         numColumns={1}
         initialNumToRender={6}
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews
-        getItemLayout={(data, index) => ({
+        getItemLayout={(index) => ({
           length: 200,
           offset: 200 * index,
           index,
