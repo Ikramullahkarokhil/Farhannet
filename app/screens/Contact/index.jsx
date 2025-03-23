@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from "react";
+import React, { useLayoutEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,11 +8,6 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -20,10 +15,13 @@ import colors from "../../../components/theme";
 
 const Index = () => {
   const navigation = useNavigation();
-  const { t } = useTranslation();
-  const scaleValue = useSharedValue(1);
+  const { t, i18n } = useTranslation();
   const ICON_COLOR = colors.primary;
   const DISABLED_COLOR = colors.textMuted;
+
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -31,24 +29,15 @@ const Index = () => {
     });
   }, [navigation]);
 
-  const animatePress = () => {
-    scaleValue.value = withSpring(0.98, {}, () => {
-      scaleValue.value = withSpring(1);
-    });
-  };
-
   const handleEmailPress = () => {
-    animatePress();
     Linking.openURL("mailto:Support@farhanict.com");
   };
 
   const handleCallPress = (phoneNumber) => {
-    animatePress();
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
   const handleWhatsAppPress = () => {
-    animatePress();
     const phoneNumber = "+93748170133";
     const whatsappUrl =
       Platform.OS === "ios"
@@ -69,7 +58,6 @@ const Index = () => {
   const handleSocialMediaPress = (platform) => {
     if (platform !== "facebook") return;
 
-    animatePress();
     const schemes = { facebook: "fb://profile" };
     const webUrls = {
       facebook: "https://www.facebook.com/profile.php?id=61567160589078",
@@ -89,70 +77,116 @@ const Index = () => {
       .catch(() => Linking.openURL(webUrl));
   };
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scaleValue.value }],
-    };
-  });
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>
+      <Text style={[styles.header, { textAlign: isRTL ? "right" : "left" }]}>
         {t("get-in")} <Text style={styles.highlight}>{t("touch")}</Text>
       </Text>
 
-      <Animated.View style={[styles.card, animatedStyle]}>
-        <TouchableOpacity onPress={handleEmailPress} style={styles.cardContent}>
+      {/* Email Support */}
+      <View style={styles.card}>
+        <TouchableOpacity
+          onPress={handleEmailPress}
+          style={[
+            styles.cardContent,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+          ]}
+        >
           <Ionicons name="mail" size={28} color={ICON_COLOR} />
-          <View style={styles.textContainer}>
+          <View
+            style={[
+              styles.textContainer,
+              { alignItems: isRTL ? "flex-end" : "flex-start" },
+            ]}
+          >
             <Text style={styles.cardLabel}>{t("email-support")}</Text>
             <Text style={styles.cardValue}>Support@farhanict.com</Text>
           </View>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       {/* Support Phone Number */}
-      <Animated.View style={[styles.card, animatedStyle]}>
+      <View style={styles.card}>
         <TouchableOpacity
           onPress={() => handleCallPress("+93748170133")}
-          style={styles.cardContent}
+          style={[
+            styles.cardContent,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+          ]}
         >
           <Ionicons name="call" size={28} color={ICON_COLOR} />
-          <View style={styles.textContainer}>
+          <View
+            style={[
+              styles.textContainer,
+              { alignItems: isRTL ? "flex-end" : "flex-start" },
+            ]}
+          >
             <Text style={styles.cardLabel}>{t("support-phone")}</Text>
             <Text style={styles.cardValue}>+93 748 170 133</Text>
           </View>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       {/* WhatsApp */}
-      <Animated.View style={[styles.card, animatedStyle]}>
+      <View style={styles.card}>
         <TouchableOpacity
           onPress={handleWhatsAppPress}
-          style={styles.cardContent}
+          style={[
+            styles.cardContent,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+          ]}
         >
           <Ionicons name="logo-whatsapp" size={28} color={ICON_COLOR} />
-          <View style={styles.textContainer}>
+          <View
+            style={[
+              styles.textContainer,
+              { alignItems: isRTL ? "flex-end" : "flex-start" },
+            ]}
+          >
             <Text style={styles.cardLabel}>{t("whatsapp")}</Text>
             <Text style={styles.cardValue}>+93 748 170 133</Text>
           </View>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
+      {/* Address */}
       <View style={styles.card}>
-        <View style={styles.cardContent}>
+        <View
+          style={[
+            styles.cardContent,
+            { flexDirection: isRTL ? "row-reverse" : "row" },
+          ]}
+        >
           <Ionicons name="location" size={28} color={ICON_COLOR} />
-          <View style={styles.textContainer}>
+          <View
+            style={[
+              styles.textContainer,
+              { alignItems: isRTL ? "flex-end" : "flex-start" },
+            ]}
+          >
             <Text style={styles.cardLabel}>{t("address")}</Text>
-            <Text style={[styles.cardValue, { paddingRight: 20 }]}>
+            <Text
+              style={[
+                styles.cardValue,
+                {
+                  paddingRight: isRTL ? 0 : 20,
+                  textAlign: isRTL ? "right" : "left",
+                },
+              ]}
+            >
               {t("location")}
             </Text>
           </View>
         </View>
       </View>
 
+      {/* Social Media Section */}
       <View style={styles.socialSection}>
-        <Text style={styles.socialHeader}>{t("connect-with-us")}</Text>
+        <Text
+          style={[styles.socialHeader, { textAlign: isRTL ? "right" : "left" }]}
+        >
+          {t("connect-with-us")}
+        </Text>
         <View style={styles.socialIcons}>
           {[
             "logo-facebook",
@@ -218,11 +252,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   cardContent: {
-    flexDirection: "row",
     alignItems: "center",
   },
   textContainer: {
     marginLeft: 16,
+    marginRight: 16,
   },
   cardLabel: {
     color: colors.textMuted,

@@ -1,4 +1,6 @@
-import React, {
+"use client";
+
+import {
   useLayoutEffect,
   useState,
   useRef,
@@ -19,12 +21,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  SlideInRight,
-} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -75,15 +71,9 @@ const Message = memo(({ item, index, messages }) => {
           <Text style={styles.dateText}>{item.date}</Text>
         </View>
       )}
-      <Animated.View
-        entering={SlideInRight.duration(300).delay((index % 3) * 50)}
-        style={styles.messageWrapper}
-      >
+      <View style={styles.messageWrapper}>
         {!item.isUser && (
           <View style={styles.avatarContainer}>
-            {/* <View style={styles.avatar}>
-              <Text style={styles.avatarText}>ISP</Text>
-            </View> */}
             <Image
               source={require("../../../assets/images/farhannetLogo.png")}
               style={styles.logo}
@@ -148,25 +138,15 @@ const Message = memo(({ item, index, messages }) => {
             {item.timestamp}
           </Text>
         </View>
-      </Animated.View>
+      </View>
     </>
   );
 });
 
-// Empty state component with animated fade-in.
+// Simplified empty state component without animations
 const EmptyState = memo(({ t }) => {
-  const fadeAnim = useSharedValue(0);
-
-  useEffect(() => {
-    fadeAnim.value = withTiming(1, { duration: 800 });
-  }, [fadeAnim]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: fadeAnim.value,
-  }));
-
   return (
-    <Animated.View style={[styles.emptyContainer, animatedStyle]}>
+    <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
         <Ionicons
           name="chatbubble-ellipses-outline"
@@ -176,7 +156,7 @@ const EmptyState = memo(({ t }) => {
       </View>
       <Text style={styles.emptyText}>{t("no-feedback-yet")}</Text>
       <Text style={styles.emptySubText}>{t("share-your-thoughts-below")}</Text>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -193,22 +173,37 @@ const Index = () => {
   const shouldScrollToBottomRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  useEffect(() => {
+    const refreshPage = async () => {
+      await fetchCustomerComplaints(user.id);
+    };
+    refreshPage();
+  }, []);
+
   const getStatusMessage = useCallback((status) => {
     switch (status) {
       case "Pending":
-        return "Your complaint has been received and is waiting for review by our team.";
+        return t(
+          "Your complaint has been received and is waiting for review by our team."
+        );
       case "Process":
-        return "We're currently working on your complaint. Our team is investigating the issue.";
+        return t(
+          "We're currently working on your complaint. Our team is investigating the issue."
+        );
       case "Complete":
-        return "Your complaint has been resolved. Thank you for your patience.";
+        return t(
+          "Your complaint has been resolved. Thank you for your patience."
+        );
       case "Cancelled":
-        return "This complaint has been canceled. Please contact support if you need further assistance.";
+        return t(
+          "This complaint has been canceled. Please contact support if you need further assistance."
+        );
       case "Posting":
-        return "We're sending your feedback to our team...";
+        return t("We're sending your feedback to our team...");
       case "Failed":
-        return "Failed to send your feedback. Please try again later.";
+        return t("Failed to send your feedback. Please try again later.");
       default:
-        return "We've received your feedback and will get back to you soon.";
+        return t("We've received your feedback and will get back to you soon.");
     }
   }, []);
 
@@ -443,8 +438,8 @@ const Index = () => {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={onRefresh}
-                  colors={[colors.primary]} // Customize the refresh control colors
-                  tintColor={colors.primary} // Customize the refresh control spinner color
+                  colors={[colors.primary]}
+                  tintColor={colors.primary}
                 />
               }
             />

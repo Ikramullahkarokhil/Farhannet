@@ -1,3 +1,5 @@
+"use client";
+
 import {
   StyleSheet,
   Text,
@@ -6,56 +8,36 @@ import {
   Pressable,
   Linking,
   RefreshControl,
+  TouchableOpacity,
+  Platform,
 } from "react-native";
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState, memo } from "react";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
-import colors from "../../../components/theme"; // Import your colors
+import colors from "../../../components/theme";
 import apiStore from "../../../components/api/apiStore";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  Easing,
-} from "react-native-reanimated";
 
 const formatDate = (dateString) => {
   const options = { year: "numeric", month: "long", day: "numeric" };
   return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
-// Animated Card Component
-const AnimatedUpdateCard = ({ item, index }) => {
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(25);
-  const scale = useSharedValue(0.97);
+// Memoized Update Card Component without animations
+const UpdateCard = memo(({ item }) => {
+  const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
 
-  useEffect(() => {
-    const animationDelay = index * 120;
-
-    opacity.value = withDelay(
-      animationDelay,
-      withTiming(1, { duration: 450, easing: Easing.ease })
-    );
-    translateY.value = withDelay(
-      animationDelay,
-      withTiming(0, { duration: 450, easing: Easing.ease })
-    );
-    scale.value = withDelay(
-      animationDelay,
-      withTiming(1, { duration: 450, easing: Easing.ease })
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }, { scale: scale.value }],
-  }));
+  // Truncate description if it's too long and not expanded
+  const MAX_DESCRIPTION_LENGTH = 100;
+  const isLongDescription = item.description.length > MAX_DESCRIPTION_LENGTH;
+  const displayDescription =
+    !expanded && isLongDescription
+      ? `${item.description.substring(0, MAX_DESCRIPTION_LENGTH)}...`
+      : item.description;
 
   return (
-    <Animated.View style={[styles.updateCard, animatedStyle]}>
+    <View style={styles.updateCard}>
       <View style={styles.cardContent}>
         <View style={styles.dateContainer}>
           <View
@@ -68,21 +50,32 @@ const AnimatedUpdateCard = ({ item, index }) => {
 
         <Text style={styles.title}>{item.title}</Text>
 
-        <Text style={styles.description}>{item.description}</Text>
+        <Text style={styles.description}>{displayDescription}</Text>
+
+        {isLongDescription && (
+          <TouchableOpacity
+            onPress={() => setExpanded(!expanded)}
+            style={styles.readMoreButton}
+          >
+            <Text style={styles.readMoreText}>
+              {expanded ? t("read-less") : t("read-more")}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {item.link && (
           <Pressable
             style={[styles.linkButton, { backgroundColor: colors.primary }]}
             onPress={() => Linking.openURL(item.link)}
           >
-            <Text style={styles.linkText}>Learn More</Text>
+            <Text style={styles.linkText}>{t("learn-more")}</Text>
             <Feather name="external-link" size={16} color="#FFFFFF" />
           </Pressable>
         )}
       </View>
-    </Animated.View>
+    </View>
   );
-};
+});
 
 const Index = () => {
   const navigation = useNavigation();
@@ -94,7 +87,7 @@ const Index = () => {
     navigation.setOptions({
       headerTitle: t("updates"),
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -107,19 +100,21 @@ const Index = () => {
       <FlatList
         data={updates.data}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item, index }) => (
-          <AnimatedUpdateCard item={item} index={index} />
-        )}
+        renderItem={({ item }) => <UpdateCard item={item} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]} // Customize the refresh control colors
-            tintColor={colors.primary} // Customize the refresh control spinner color
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === "android"}
       />
     </View>
   );
@@ -202,7 +197,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textMuted,
     lineHeight: 24,
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  readMoreButton: {
+    marginBottom: 15,
+  },
+  readMoreText: {
+    color: colors.primary,
+    fontWeight: "600",
+    fontSize: 14,
   },
   linkButton: {
     alignSelf: "flex-start",

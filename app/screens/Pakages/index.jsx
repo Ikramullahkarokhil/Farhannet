@@ -1,46 +1,20 @@
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
-  memo,
-} from "react";
+"use client";
+
+import { useEffect, useLayoutEffect, useState, useCallback, memo } from "react";
 import { StyleSheet, Text, View, FlatList } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import apiStore from "../../../components/api/apiStore";
-import SkeletonLoader from "../../../components/skeleton/PakagesSkeleton";
 import colors from "../../../components/theme";
 
-// Optimized PackageItem with memoization
+// Optimized PackageItem with memoization but without animations
 const PackageItem = memo(
-  ({ packages, index }) => {
-    const fadeAnim = useSharedValue(0);
-    const scaleAnim = useSharedValue(0.8);
+  ({ packages }) => {
     const { t } = useTranslation();
 
-    useEffect(() => {
-      fadeAnim.value = withTiming(1, { duration: 400, delay: index * 100 });
-      scaleAnim.value = withSpring(1, { damping: 10, stiffness: 100 });
-    }, [fadeAnim, scaleAnim, index]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-      opacity: fadeAnim.value,
-      transform: [{ scale: scaleAnim.value }],
-    }));
-
-    const cleanDescription =
-      packages.description?.replace(/✅/g, "•").replace(/\r\n/g, " ") || "";
-
     return (
-      <Animated.View style={[styles.card, animatedStyle]}>
+      <View style={styles.card}>
         <View style={styles.header}>
           <Text style={styles.name} numberOfLines={2}>
             {packages.title}
@@ -65,7 +39,7 @@ const PackageItem = memo(
             {packages.description}
           </Text>
         </View>
-      </Animated.View>
+      </View>
     );
   },
   (prevProps, nextProps) =>
@@ -76,7 +50,7 @@ PackageItem.displayName = "PackageItem";
 
 const Index = () => {
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { categoryId, catName } = useLocalSearchParams();
   const { packagesData } = apiStore();
 
@@ -95,31 +69,20 @@ const Index = () => {
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerTitle: catName });
-  }, [navigation]);
-
-  const renderItem = useCallback(
-    ({ item, index }) => {
-      return loading ? (
-        <SkeletonLoader />
-      ) : (
-        <PackageItem packages={item} index={index} />
-      );
-    },
-    [loading]
-  );
+  }, [navigation, catName]);
 
   return (
     <View style={styles.container}>
       <FlatList
         data={data}
-        renderItem={renderItem}
+        renderItem={({ item }) => <PackageItem packages={item} />}
         keyExtractor={(item, index) => item.id?.toString() || `item-${index}`}
         contentContainerStyle={styles.listContent}
         numColumns={1}
         initialNumToRender={6}
         maxToRenderPerBatch={10}
         windowSize={5}
-        removeClippedSubviews
+        removeClippedSubviews={true}
         getItemLayout={(index) => ({
           length: 200,
           offset: 200 * index,
@@ -146,7 +109,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingVertical: 10,
     paddingHorizontal: 8,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   emptyText: {
     fontSize: 16,
@@ -154,7 +117,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: 20,
   },
-
   card: {
     backgroundColor: colors.background,
     borderRadius: 16,
@@ -191,7 +153,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     opacity: 0.9,
   },
-
   cardContent: {
     padding: 12,
   },

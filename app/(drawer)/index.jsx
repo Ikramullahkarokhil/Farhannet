@@ -1,9 +1,12 @@
+"use client";
+
 import React, {
   useLayoutEffect,
   useEffect,
   useState,
   useCallback,
   memo,
+  useMemo,
 } from "react";
 import {
   StyleSheet,
@@ -17,117 +20,80 @@ import {
   StatusBar,
 } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome6 } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  interpolate,
-  Easing,
-  FadeIn,
-} from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
 import colors from "../../components/theme";
 import NetInfo from "@react-native-community/netinfo";
-import { Dialog, Portal, Button } from "react-native-paper"; // Import Dialog and related components
+import { Dialog, Portal, Button } from "react-native-paper";
 
-// Reusable Full-Row Tile Component, memoized for performance
-const FullRowTile = memo(
-  ({ icon, title, count, onPress, color, index = 0 }) => {
-    const { t } = useTranslation();
-    const scaleAnim = useSharedValue(1);
-
-    const handlePressIn = useCallback(() => {
-      scaleAnim.value = withSpring(0.97);
-    }, [scaleAnim]);
-
-    const handlePressOut = useCallback(() => {
-      scaleAnim.value = withSpring(1, { damping: 15, stiffness: 150 });
-    }, [scaleAnim]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: scaleAnim.value }],
-    }));
-
-    return (
-      <Animated.View entering={FadeIn.delay(300 + index * 100)}>
-        <TouchableOpacity
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          onPress={onPress}
-          activeOpacity={0.9}
-        >
-          <Animated.View style={[styles.fullRowTile, animatedStyle]}>
-            <View
-              style={[
-                styles.tileContent,
-                { borderLeftColor: color, borderLeftWidth: 4 },
-              ]}
-            >
-              <View
-                style={[
-                  styles.tileIconContainer,
-                  { backgroundColor: `${color}15` },
-                ]}
-              >
-                <Feather name={icon} size={22} color={color} />
-              </View>
-              <View style={styles.tileTextContent}>
-                <Text style={styles.tileTitle}>{title}</Text>
-                {count !== undefined && (
-                  <Text style={styles.tileCount}>
-                    <Text style={{ color, fontWeight: "600" }}>{count}</Text>{" "}
-                    <Text style={styles.tileCountLabel}>{t("available")}</Text>
-                  </Text>
-                )}
-              </View>
-              <View style={styles.chevronContainer}>
-                <Feather
-                  name="chevron-right"
-                  size={20}
-                  color={colors.textMuted}
-                />
-              </View>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }
-);
-
-// No user component
-const NoUserView = () => {
-  const { t } = useTranslation();
-  const router = useRouter();
+// Simplified Tile Component without animations
+const FullRowTile = memo(({ icon, title, count, onPress, color }) => {
+  const { t, i18n } = useTranslation();
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <View style={styles.noUserContainer}>
-        <Feather name="user-x" size={50} color={colors.textMuted} />
-        <Text style={styles.noUserText}>{t("not-logged-in")}</Text>
-        <TouchableOpacity
-          style={styles.getPackageButton}
-          onPress={() => router.navigate("/Login")}
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.fullRowTile}>
+        <View
+          style={[
+            styles.tileContent,
+            isRTL
+              ? {
+                  borderRightColor: color,
+                  borderRightWidth: 4,
+                  borderLeftWidth: 0,
+                  flexDirection: "row-reverse",
+                }
+              : { borderLeftColor: color, borderLeftWidth: 4 },
+          ]}
         >
-          <Text style={styles.getPackageButtonText}>{t("login")}</Text>
-        </TouchableOpacity>
+          <View
+            style={[
+              styles.tileIconContainer,
+              { backgroundColor: `${color}15` },
+            ]}
+          >
+            <Feather name={icon} size={22} color={color} />
+          </View>
+          <View
+            style={[
+              styles.tileTextContent,
+              isRTL ? { marginRight: 16, marginLeft: 0 } : { marginLeft: 16 },
+            ]}
+          >
+            <Text style={[styles.tileTitle, isRTL && styles.rtlText]}>
+              {title}
+            </Text>
+            {count !== undefined && (
+              <Text style={[styles.tileCount, isRTL && styles.rtlText]}>
+                <Text style={{ color, fontWeight: "600" }}>{count}</Text>{" "}
+                <Text style={styles.tileCountLabel}>{t("available")}</Text>
+              </Text>
+            )}
+          </View>
+          <View style={styles.chevronContainer}>
+            <Feather
+              name={isRTL ? "chevron-left" : "chevron-right"}
+              size={20}
+              color={colors.textMuted}
+            />
+          </View>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
-};
+});
 
 const Index = () => {
   const navigation = useNavigation();
   const router = useRouter();
-  const { t } = useTranslation();
-  const progressAnim = useSharedValue(0);
-  const headerOpacity = useSharedValue(1);
+  const { t, i18n } = useTranslation();
+  const [progressValue, setProgressValue] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [visible, setVisible] = useState(false); // State to manage Dialog visibility
+  const [visible, setVisible] = useState(false);
 
   const {
     categories,
@@ -135,20 +101,29 @@ const Index = () => {
     fetchCustomerPackage,
     fetchCustomerComplaints,
     fetchUpdates,
+    fetchAllPakages,
     updates,
     user,
   } = apiStore();
 
+  // Get text direction based on language
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <Animated.View entering={FadeIn.duration(800)}>
-          <Image
-            source={require("../../assets/images/farhannetLogo.png")}
-            style={{ width: 110, height: 70, marginLeft: 6 }}
-            resizeMode="contain"
-          />
-        </Animated.View>
+        <Image
+          source={require("../../assets/images/farhannetLogo.png")}
+          style={{
+            width: 110,
+            height: 70,
+            marginLeft: isRTL ? 0 : 6,
+            marginRight: isRTL ? 6 : 0,
+          }}
+          resizeMode="contain"
+        />
       ),
       headerTitle: "",
       headerStyle: {
@@ -158,13 +133,14 @@ const Index = () => {
         borderBottomWidth: 0,
       },
     });
-  }, [navigation]);
+  }, [navigation, isRTL]);
 
   const numOfCategories = React.useMemo(
     () => categories.map((item) => item.id),
     [categories]
   );
 
+  // Calculate progress value without animations
   useEffect(() => {
     if (activePackage) {
       const totalDuration = Math.ceil(
@@ -177,37 +153,33 @@ const Index = () => {
           (1000 * 60 * 60 * 24)
       );
 
-      // Reset progress for a smooth animation
-      progressAnim.value = 0;
-      setTimeout(() => {
-        progressAnim.value = withTiming(
-          (totalDuration - remainingDays) / totalDuration,
-          { duration: 1500, easing: Easing.bezier(0.25, 0.1, 0.25, 1) }
-        );
-      }, 300);
+      setProgressValue(((totalDuration - remainingDays) / totalDuration) * 100);
     }
-  }, [activePackage, progressAnim]);
-
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${interpolate(progressAnim.value, [0, 1], [0, 100])}%`,
-  }));
+  }, [activePackage]);
 
   const onRefresh = useCallback(async () => {
     const netState = await NetInfo.fetch();
-    if (netState.isConnected && user) {
-      setRefreshing(true);
-      headerOpacity.value = withTiming(0.3, { duration: 300 });
+    setRefreshing(true);
 
-      await Promise.all([
-        fetchCustomerPackage(user.id),
-        fetchCustomerComplaints(user.id),
-        fetchUpdates(),
-      ]);
-
-      headerOpacity.value = withTiming(1, { duration: 300 });
-      setRefreshing(false);
+    if (netState.isConnected) {
+      await fetchAllPakages();
+      if (user) {
+        await Promise.all([
+          fetchCustomerPackage(user.id),
+          fetchCustomerComplaints(user.id),
+          fetchUpdates(),
+        ]);
+      }
     }
-  }, [user, fetchCustomerPackage, fetchCustomerComplaints, headerOpacity]);
+
+    setRefreshing(false);
+  }, [
+    user,
+    fetchCustomerPackage,
+    fetchCustomerComplaints,
+    fetchUpdates,
+    fetchAllPakages,
+  ]);
 
   const daysLeft = activePackage
     ? Math.ceil(
@@ -218,6 +190,18 @@ const Index = () => {
   const isExpired = activePackage?.status === "Expire";
   const isWarning =
     activePackage && activePackage.status !== "Expire" && daysLeft <= 3;
+
+  const getTitle = useCallback(
+    (category) => {
+      const lang = i18n.language;
+      console.log(category);
+
+      if (lang === "pa" && category.title_ps) return category.title_ps;
+      if (lang === "da" && category.title_dr) return category.title_dr;
+      return category.title;
+    },
+    [i18n.language]
+  );
 
   return (
     <View style={styles.container}>
@@ -234,27 +218,36 @@ const Index = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Render current package section only if a user exists */}
-        {user && (
-          <View
-            style={[
-              styles.section,
-              isExpired && styles.expiredCard,
-              isWarning && styles.warningCard,
-            ]}
-          >
-            <Text style={styles.sectionTitle}>{t("current-plan")}</Text>
-            {activePackage ? (
+        {/* Render current package section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+            {t("current-plan")}
+          </Text>
+          {user ? (
+            activePackage ? (
               <View style={styles.currentPackageContainer}>
                 <View style={styles.currentPackage}>
-                  <View style={styles.packageHeader}>
-                    <View style={styles.packageInfo}>
-                      <Text style={styles.packageName} numberOfLines={2}>
+                  <View
+                    style={[styles.packageHeader, isRTL && styles.rtlFlexRow]}
+                  >
+                    <View
+                      style={[
+                        styles.packageInfo,
+                        isRTL
+                          ? { marginLeft: 10, marginRight: 0 }
+                          : { marginRight: 10 },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.packageName, isRTL && styles.rtlText]}
+                        numberOfLines={2}
+                      >
                         {activePackage.package}
                       </Text>
                       <Text
                         style={[
                           styles.packageStats,
+                          isRTL && styles.rtlText,
                           isExpired && styles.expiredText,
                         ]}
                       >
@@ -266,17 +259,18 @@ const Index = () => {
                   </View>
 
                   <View style={styles.progressContainer}>
-                    <Animated.View
+                    <View
                       style={[
                         styles.progressBar,
-                        progressStyle,
+                        { width: `${progressValue}%` },
                         isExpired && styles.expiredProgressBar,
                         isWarning && styles.warningProgressBar,
+                        isRTL && styles.rtlProgressBar,
                       ]}
                     />
                   </View>
 
-                  <Text style={styles.expiryDate}>
+                  <Text style={[styles.expiryDate, isRTL && styles.rtlText]}>
                     {isExpired
                       ? `${t("expired")}: ${activePackage.expiry_date}`
                       : `${t("expires")}: ${activePackage.expiry_date}`}
@@ -290,21 +284,37 @@ const Index = () => {
                   size={24}
                   color={colors.textMuted}
                 />
-                <Text style={styles.emptyStateText}>
+                <Text style={[styles.emptyStateText, isRTL && styles.rtlText]}>
                   {t("no-active-package")}
                 </Text>
                 <TouchableOpacity
                   style={styles.getPackageButton}
                   onPress={() => router.navigate("screens/CategoriesList")}
                 >
-                  <Text style={styles.getPackageButtonText}>
+                  <Text
+                    style={[
+                      styles.getPackageButtonText,
+                      isRTL && styles.rtlText,
+                    ]}
+                  >
                     {t("get-package")}
                   </Text>
                 </TouchableOpacity>
               </View>
-            )}
-          </View>
-        )}
+            )
+          ) : (
+            <View style={styles.loginPromptContainer}>
+              <FontAwesome6
+                name="user-large-slash"
+                size={24}
+                color={colors.textMuted}
+              />
+              <Text style={[styles.loginPromptText, isRTL && styles.rtlText]}>
+                {t("please-login-to-show-your-package")}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Tiles Section */}
         <View style={styles.tilesContainer}>
@@ -313,8 +323,20 @@ const Index = () => {
             title={t("available-pakages")}
             count={numOfCategories.length}
             color={colors.accent}
-            onPress={() => router.navigate("screens/CategoriesList")}
-            index={0}
+            onPress={() => {
+              if (numOfCategories.length === 1) {
+                const category = categories[0];
+                router.navigate({
+                  pathname: "screens/Pakages",
+                  params: {
+                    categoryId: category.id,
+                    catName: getTitle(category),
+                  },
+                });
+              } else {
+                router.navigate("screens/CategoriesList");
+              }
+            }}
           />
           <FullRowTile
             icon="bell"
@@ -328,7 +350,6 @@ const Index = () => {
                 router.navigate("screens/Updates");
               }
             }}
-            index={1}
           />
           <FullRowTile
             icon="message-circle"
@@ -336,19 +357,17 @@ const Index = () => {
             color="#6366F1"
             onPress={() => {
               if (!user) {
-                setVisible(true); // Show Dialog instead of Alert
+                setVisible(true);
               } else {
                 router.navigate("screens/Feadback");
               }
             }}
-            index={2}
           />
           <FullRowTile
             icon="help-circle"
             title={t("support")}
             color={colors.secondary2}
             onPress={() => router.navigate("screens/Contact")}
-            index={3}
           />
         </View>
       </ScrollView>
@@ -356,19 +375,25 @@ const Index = () => {
       {/* Dialog for showing login alert */}
       <Portal>
         <Dialog visible={visible} onDismiss={() => setVisible(false)}>
-          <Dialog.Title>{t("login-required")}</Dialog.Title>
+          <Dialog.Title style={isRTL && styles.rtlText}>
+            {t("login-required")}
+          </Dialog.Title>
           <Dialog.Content>
-            <Text>{t("please-login-to-access-this-feature")}</Text>
+            <Text style={isRTL && styles.rtlText}>
+              {t("please-login-to-access-this-feature")}
+            </Text>
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setVisible(false)}>{t("cancel")}</Button>
+          <Dialog.Actions style={isRTL && styles.rtlFlexRow}>
+            <Button onPress={() => setVisible(false)}>
+              <Text style={isRTL && styles.rtlText}>{t("cancel")}</Text>
+            </Button>
             <Button
               onPress={() => {
                 router.navigate("/Login");
                 setVisible(false);
               }}
             >
-              {t("login")}
+              <Text style={isRTL && styles.rtlText}>{t("login")}</Text>
             </Button>
           </Dialog.Actions>
         </Dialog>
@@ -381,6 +406,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  rtlFlexRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  rtlProgressBar: {
+    right: 0,
+    left: "auto",
   },
   scrollContent: {
     padding: 20,
@@ -463,6 +499,8 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: colors.primary,
     borderRadius: 4,
+    position: "absolute",
+    left: 0,
   },
   expiredProgressBar: {
     backgroundColor: colors.danger,
@@ -581,6 +619,18 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 20,
     fontSize: 16,
+    textAlign: "center",
+  },
+  loginPromptContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  loginPromptText: {
+    color: colors.textMuted,
+    marginTop: 8,
+    marginBottom: 16,
+    fontSize: 15,
     textAlign: "center",
   },
 });

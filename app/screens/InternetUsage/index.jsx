@@ -17,7 +17,7 @@ const Index = () => {
   return (
     <View style={styles.container}>
       <MaterialIcons name="hourglass-empty" size={100} color="#888" />
-      <Text style={styles.text}>Coming Soon</Text>
+      <Text style={styles.text}>{t("Coming Soon")}</Text>
     </View>
   );
 };

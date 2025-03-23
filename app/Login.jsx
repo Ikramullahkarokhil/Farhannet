@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -23,34 +23,13 @@ import apiStore from "../components/api/apiStore";
 import { MaterialIcons } from "@expo/vector-icons";
 import colors from "../components/theme";
 
-// Import Reanimated 3 hooks
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-} from "react-native-reanimated";
-
-// Detect screen width for responsiveness
 const { width } = Dimensions.get("window");
 const isTablet = width > 600;
 
 const Login = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { login } = apiStore();
-
-  // Reanimated shared values for fade and slide
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(50);
-
-  // Define an animated style that combines the shared values
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value,
-      transform: [{ translateY: translateY.value }],
-    };
-  });
 
   const [values, setValues] = useState({ username: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -58,27 +37,29 @@ const Login = () => {
   const [status, setStatus] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  const [isFormValid, setIsFormValid] = useState(false);
 
-  useEffect(() => {
-    // Animate opacity and slide-in when component mounts
-    opacity.value = withTiming(1, { duration: 800 });
-    translateY.value = withTiming(0, { duration: 800 });
-  }, []);
+  const validationSchema = useMemo(
+    () =>
+      Yup.object().shape({
+        username: Yup.string().required(t("username-is-required")),
+        password: Yup.string()
+          .required(t("password-is-required"))
+          .min(8, t("password-min-length")),
+      }),
+    [t]
+  );
 
-  const validationSchema = Yup.object().shape({
-    username: Yup.string().required(t("username-is-required")),
-    password: Yup.string()
-      .required(t("password-is-required"))
-      .min(8, t("password-min-length")),
-  });
+  const handleChange = useCallback(
+    (field) => (text) => {
+      setValues((prev) => ({ ...prev, [field]: text }));
+      setErrors((prev) => ({ ...prev, [field]: null }));
+      setStatus(null);
+    },
+    []
+  );
 
-  const handleChange = (field) => (text) => {
-    setValues({ ...values, [field]: text });
-    setErrors({ ...errors, [field]: null }); // Clear error when typing
-    setStatus(null); // Clear status messages when typing
-  };
-
-  const validateForm = async () => {
+  const validateForm = useCallback(async () => {
     try {
       await validationSchema.validate(values, { abortEarly: false });
       setErrors({});
@@ -93,9 +74,18 @@ const Login = () => {
       }
       return false;
     }
-  };
+  }, [validationSchema, values]);
 
-  const handleSubmit = async () => {
+  // Check form validity whenever values change
+  useEffect(() => {
+    const checkValidity = async () => {
+      const valid = await validateForm();
+      setIsFormValid(valid);
+    };
+    checkValidity();
+  }, [values, validateForm]);
+
+  const handleSubmit = useCallback(async () => {
     setIsSubmitting(true);
     setStatus(null);
 
@@ -115,39 +105,43 @@ const Login = () => {
             "userSession",
             JSON.stringify(sessionData)
           );
-
           router.replace("/(drawer)");
         }
       } catch (error) {
         console.error("Login error:", error);
-        setStatus({
-          error: error.message || t("login-failed"),
-        });
-
-        // Shake animation for error using withSequence
-        translateY.value = withSequence(
-          withTiming(-10, { duration: 50 }),
-          withTiming(10, { duration: 50 }),
-          withTiming(-10, { duration: 50 }),
-          withTiming(10, { duration: 50 }),
-          withTiming(0, { duration: 50 })
-        );
+        setStatus({ error: error.message || t("login-failed") });
       }
     }
     setIsSubmitting(false);
-  };
+  }, [validateForm, values, login, router, t]);
 
-  const getInputStyle = (field) => [
-    styles.input,
-    focusedField === field && styles.inputFocused,
-  ];
+  const handleSkip = useCallback(() => {
+    router.replace("/(drawer)");
+  }, [router]);
 
-  const handleSkip = () => {
-    router.replace("(drawer)");
-  };
+  const getInputStyle = useCallback(
+    (field) => [styles.input, focusedField === field && styles.inputFocused],
+    [focusedField]
+  );
+
+  // Get text direction based on language
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
+
+  // Apply RTL styles when needed
+  const containerStyle = useMemo(
+    () => [styles.container, isRTL && styles.rtlContainer],
+    [isRTL]
+  );
+
+  const textStyle = useMemo(
+    () => [styles.inputLabel, isRTL && styles.rtlText],
+    [isRTL]
+  );
 
   return (
-    <View style={styles.container}>
+    <View style={containerStyle}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -157,11 +151,11 @@ const Login = () => {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View
+          <View
             style={[
               styles.innerContainer,
-              animatedStyle,
               { maxWidth: isTablet ? 500 : 400 },
+              isRTL && styles.rtlInnerContainer,
             ]}
           >
             <View style={styles.logoContainer}>
@@ -172,15 +166,16 @@ const Login = () => {
               />
             </View>
 
-            <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
+            <Text style={[styles.subtitle]}>{t("signin-to-continue")}</Text>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>{t("username")}</Text>
+              <Text style={textStyle}>{t("username")}</Text>
               <View
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "username" && styles.inputWrapperFocused,
                   errors.username && styles.inputWrapperError,
+                  isRTL && styles.rtlIconInputWrapper,
                 ]}
               >
                 <MaterialIcons
@@ -191,10 +186,10 @@ const Login = () => {
                       ? colors.primary
                       : colors.textMuted
                   }
-                  style={styles.icon}
+                  style={[styles.icon, isRTL && styles.rtlIcon]}
                 />
                 <TextInput
-                  style={getInputStyle("username")}
+                  style={[getInputStyle("username"), isRTL && styles.rtlInput]}
                   placeholder={t("enter-username")}
                   placeholderTextColor={colors.textMuted}
                   value={values.username}
@@ -202,22 +197,26 @@ const Login = () => {
                   autoCapitalize="none"
                   onFocus={() => setFocusedField("username")}
                   onBlur={() => setFocusedField(null)}
+                  textAlign={isRTL ? "right" : "left"}
                 />
               </View>
               <View style={styles.errorContainer}>
                 {errors.username && (
-                  <Text style={styles.errorText}>{errors.username}</Text>
+                  <Text style={[styles.errorText, isRTL && styles.rtlText]}>
+                    {errors.username}
+                  </Text>
                 )}
               </View>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>{t("password")}</Text>
+              <Text style={textStyle}>{t("password")}</Text>
               <View
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "password" && styles.inputWrapperFocused,
                   errors.password && styles.inputWrapperError,
+                  isRTL && styles.rtlIconInputWrapper,
                 ]}
               >
                 <MaterialIcons
@@ -228,10 +227,10 @@ const Login = () => {
                       ? colors.primary
                       : colors.textMuted
                   }
-                  style={styles.icon}
+                  style={[styles.icon, isRTL && styles.rtlIcon]}
                 />
                 <TextInput
-                  style={getInputStyle("password")}
+                  style={[getInputStyle("password"), isRTL && styles.rtlInput]}
                   placeholder={t("enter-password")}
                   placeholderTextColor={colors.textMuted}
                   value={values.password}
@@ -240,6 +239,7 @@ const Login = () => {
                   autoCapitalize="none"
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
+                  textAlign={isRTL ? "right" : "left"}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -254,17 +254,23 @@ const Login = () => {
               </View>
               <View style={styles.errorContainer}>
                 {errors.password && (
-                  <Text style={styles.errorText}>{errors.password}</Text>
+                  <Text style={[styles.errorText, isRTL && styles.rtlText]}>
+                    {errors.password}
+                  </Text>
                 )}
               </View>
             </View>
 
             <View style={styles.statusContainer}>
               {status && status.error && (
-                <Text style={styles.errorText}>{status.error}</Text>
+                <Text style={[styles.errorText, isRTL && styles.rtlText]}>
+                  {status.error}
+                </Text>
               )}
               {status && status.success && (
-                <Text style={styles.successText}>{status.success}</Text>
+                <Text style={[styles.successText, isRTL && styles.rtlText]}>
+                  {status.success}
+                </Text>
               )}
             </View>
 
@@ -273,9 +279,9 @@ const Login = () => {
               onPress={handleSubmit}
               style={styles.paperButton}
               contentStyle={styles.buttonContent}
-              disabled={isSubmitting}
-              buttonColor={colors.primary}
-              labelStyle={styles.buttonLabel}
+              disabled={isSubmitting || !isFormValid}
+              buttonColor={isFormValid ? colors.primary : colors.textMuted}
+              labelStyle={[styles.buttonLabel, isRTL && styles.rtlText]}
             >
               {isSubmitting ? (
                 <ActivityIndicator color={colors.background} />
@@ -283,16 +289,19 @@ const Login = () => {
                 t("login")
               )}
             </Button>
-            <Button
-              mode="outlined"
-              onPress={handleSkip}
-              textColor={colors.text}
-              labelStyle={styles.buttonLabel}
-              style={[styles.paperButton, { borderColor: colors.primary }]}
-            >
-              {t("skip")}
-            </Button>
-          </Animated.View>
+          </View>
+          <Button
+            mode="outlined"
+            onPress={handleSkip}
+            textColor={colors.text}
+            labelStyle={[styles.buttonLabel, isRTL && styles.rtlText]}
+            style={[
+              styles.paperButton,
+              { borderColor: colors.primary, width: "85%" },
+            ]}
+          >
+            {t("skip")}
+          </Button>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -303,6 +312,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  rtlContainer: {
+    flexDirection: "row-reverse",
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -317,9 +329,13 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 30,
   },
+  rtlInnerContainer: {
+    alignItems: "flex-end",
+  },
   logoContainer: {
     marginBottom: 20,
     alignItems: "center",
+    width: "100%",
   },
   logo: {
     width: 150,
@@ -337,6 +353,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: 30,
     textAlign: "center",
+    width: "100%",
+  },
+  rtlText: {
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   inputContainer: {
     width: "100%",
@@ -358,6 +379,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     height: 56,
   },
+  rtlIconInputWrapper: {
+    flexDirection: "row-reverse",
+  },
   inputWrapperFocused: {
     borderColor: colors.primary,
     borderWidth: 2,
@@ -369,11 +393,18 @@ const styles = StyleSheet.create({
   icon: {
     marginRight: 10,
   },
+  rtlIcon: {
+    marginRight: 0,
+    marginLeft: 10,
+  },
   input: {
     flex: 1,
     color: colors.text,
     fontSize: 16,
     height: "100%",
+  },
+  rtlInput: {
+    textAlign: "right",
   },
   inputFocused: {
     color: colors.primary,
@@ -396,7 +427,6 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     fontSize: 14,
-    textAlign: "center",
   },
   successText: {
     color: colors.accent,

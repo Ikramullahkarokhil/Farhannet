@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -16,12 +16,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as yup from "yup";
 import { Button } from "react-native-paper";
 import colors from "../../../components/theme";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-} from "react-native-reanimated";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import apiStore from "../../../components/api/apiStore";
@@ -52,22 +46,16 @@ const ChangePassword = () => {
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { changePassword, user } = apiStore();
 
-  // Reanimated animation values
-  const fadeAnim = useSharedValue(0);
-  const slideAnim = useSharedValue(50);
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerTitle: t("change-password") });
   }, [navigation, t]);
-
-  useEffect(() => {
-    // Initial animation
-    fadeAnim.value = withTiming(1, { duration: 800 });
-    slideAnim.value = withTiming(0, { duration: 800 });
-  }, []);
 
   useEffect(() => {
     if (confirmTouched && confirmPassword) {
@@ -142,42 +130,18 @@ const ChangePassword = () => {
       setErrors({});
       setConfirmTouched(false);
 
-      // Success shake animation with Reanimated
-      slideAnim.value = withSequence(
-        withTiming(-5, { duration: 50 }),
-        withTiming(5, { duration: 50 }),
-        withTiming(-5, { duration: 50 }),
-        withTiming(5, { duration: 50 }),
-        withTiming(0, { duration: 50 })
-      );
-
       setTimeout(() => setIsSuccess(false), 3000);
     } catch (error) {
       Alert.alert("Error", "Something went wrong. Please try again.");
-
-      // Error shake animation
-      slideAnim.value = withSequence(
-        withTiming(-10, { duration: 50 }),
-        withTiming(10, { duration: 50 }),
-        withTiming(-10, { duration: 50 }),
-        withTiming(10, { duration: 50 }),
-        withTiming(0, { duration: 50 })
-      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Animated style using Reanimated
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: fadeAnim.value,
-    transform: [{ translateY: slideAnim.value }],
-    maxWidth: isTablet ? 500 : 400,
-  }));
-
   const getInputStyle = (field) => [
     styles.input,
     focusedField === field && styles.inputFocused,
+    { textAlign: isRTL ? "right" : "left" },
   ];
 
   return (
@@ -189,11 +153,12 @@ const ChangePassword = () => {
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.View style={[styles.innerContainer, animatedStyle]}>
-          {/* Rest of your JSX remains the same */}
+        <View style={styles.innerContainer}>
           <View style={styles.header}>
-            <Text style={styles.subtitle}>
-              Create a new password that is secure and easy to remember
+            <Text
+              style={[styles.subtitle, { textAlign: isRTL ? "right" : "left" }]}
+            >
+              {t("Create a new password that is secure and easy to remember")}
             </Text>
           </View>
 
@@ -205,19 +170,27 @@ const ChangePassword = () => {
                 color={colors.accent}
               />
               <Text style={styles.successText}>
-                Password changed successfully!
+                {t("Password changed successfully!")}
               </Text>
             </View>
           )}
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>New Password</Text>
+              <Text
+                style={[
+                  styles.inputLabel,
+                  { textAlign: isRTL ? "right" : "left" },
+                ]}
+              >
+                {t("New Password")}
+              </Text>
               <View
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "newPassword" && styles.inputWrapperFocused,
                   errors.newPassword && styles.inputWrapperError,
+                  { flexDirection: isRTL ? "row-reverse" : "row" },
                 ]}
               >
                 <MaterialIcons
@@ -228,17 +201,18 @@ const ChangePassword = () => {
                       ? colors.primary
                       : colors.textMuted
                   }
-                  style={styles.icon}
+                  style={[
+                    styles.icon,
+                    isRTL ? { marginLeft: 10 } : { marginRight: 10 },
+                  ]}
                 />
                 <TextInput
                   style={getInputStyle("newPassword")}
-                  placeholder="Enter new password"
+                  placeholder={t("Enter new password")}
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showNewPassword}
                   value={newPassword}
-                  onChangeText={(text) => {
-                    setNewPassword(text);
-                  }}
+                  onChangeText={setNewPassword}
                   onFocus={() => setFocusedField("newPassword")}
                   onBlur={() => {
                     setFocusedField(null);
@@ -258,19 +232,34 @@ const ChangePassword = () => {
               </View>
               <View style={styles.errorContainer}>
                 {errors.newPassword && (
-                  <Text style={styles.errorText}>{errors.newPassword}</Text>
+                  <Text
+                    style={[
+                      styles.errorText,
+                      { textAlign: isRTL ? "right" : "left" },
+                    ]}
+                  >
+                    {errors.newPassword}
+                  </Text>
                 )}
               </View>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Confirm Password</Text>
+              <Text
+                style={[
+                  styles.inputLabel,
+                  { textAlign: isRTL ? "right" : "left" },
+                ]}
+              >
+                {t("Confirm Password")}
+              </Text>
               <View
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "confirmPassword" &&
                     styles.inputWrapperFocused,
                   errors.confirmPassword && styles.inputWrapperError,
+                  { flexDirection: isRTL ? "row-reverse" : "row" },
                 ]}
               >
                 <MaterialIcons
@@ -281,11 +270,14 @@ const ChangePassword = () => {
                       ? colors.primary
                       : colors.textMuted
                   }
-                  style={styles.icon}
+                  style={[
+                    styles.icon,
+                    isRTL ? { marginLeft: 10 } : { marginRight: 10 },
+                  ]}
                 />
                 <TextInput
                   style={getInputStyle("confirmPassword")}
-                  placeholder="Confirm new password"
+                  placeholder={t("Confirm new password")}
                   placeholderTextColor={colors.textMuted}
                   secureTextEntry={!showConfirmPassword}
                   value={confirmPassword}
@@ -311,7 +303,14 @@ const ChangePassword = () => {
               </View>
               <View style={styles.errorContainer}>
                 {errors.confirmPassword && (
-                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                  <Text
+                    style={[
+                      styles.errorText,
+                      { textAlign: isRTL ? "right" : "left" },
+                    ]}
+                  >
+                    {errors.confirmPassword}
+                  </Text>
                 )}
               </View>
             </View>
@@ -333,11 +332,11 @@ const ChangePassword = () => {
               {isLoading ? (
                 <ActivityIndicator color={colors.background} />
               ) : (
-                "Update Password"
+                t("Update Password")
               )}
             </Button>
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -359,31 +358,30 @@ const styles = StyleSheet.create({
   innerContainer: {
     width: "100%",
     paddingHorizontal: 30,
-    maxWidth: 400,
+    maxWidth: isTablet ? 500 : 400,
+    paddingBottom: 60,
   },
   header: {
     marginBottom: 32,
     alignItems: "center",
   },
-
   subtitle: {
     fontSize: 16,
     color: colors.textMuted,
     lineHeight: 22,
-    textAlign: "center",
   },
   form: {
     width: "100%",
   },
   inputContainer: {
     width: "100%",
+    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
     fontWeight: "500",
     color: colors.text,
     marginBottom: 8,
-    marginLeft: 4,
   },
   iconInputWrapper: {
     flexDirection: "row",

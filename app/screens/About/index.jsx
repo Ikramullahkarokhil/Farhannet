@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,51 +10,24 @@ import {
   Dimensions,
   Platform,
   StatusBar,
+  ScrollView,
 } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  interpolate,
-} from "react-native-reanimated";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Link, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import colors from "../../../components/theme";
 
 const { width } = Dimensions.get("window");
-const cardWidth = width * 0.85;
+const cardWidth = width * 0.9; // Slightly wider cards for better readability
 
 const AboutScreen = () => {
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
-  // Reanimated shared values
-  const scrollY = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(50);
-
-  const logoAnimatedStyle = useAnimatedStyle(() => {
-    const translateYValue = interpolate(
-      scrollY.value,
-      [0, 100],
-      [0, -20],
-      "clamp"
-    );
-
-    return {
-      transform: [{ translateY: translateYValue }],
-    };
-  });
-
-  const contentAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value,
-      transform: [{ translateY: translateY.value }],
-    };
-  });
+  // Check if language is RTL (Pashto or Dari)
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   // Features data
   const features = [
@@ -88,26 +61,6 @@ const AboutScreen = () => {
     },
   ];
 
-  const featureAnimatedStyles = features.map((_, index) => {
-    return useAnimatedStyle(() => {
-      return {
-        opacity: withDelay(
-          100 * index,
-          withTiming(opacity.value, { duration: 300 })
-        ),
-        transform: [
-          {
-            translateY: withDelay(
-              100 * index,
-              withTiming(translateY.value, { duration: 500 })
-            ),
-          },
-        ],
-        zIndex: 1,
-      };
-    });
-  });
-
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: t("about-us"),
@@ -121,45 +74,36 @@ const AboutScreen = () => {
         fontWeight: "600",
         fontSize: 18,
         color: colors.text,
+        textAlign: isRTL ? "right" : "left",
       },
     });
-
-    // Start entrance animations
-    opacity.value = withTiming(1, { duration: 800 });
-    translateY.value = withTiming(0, { duration: 800 });
-  }, [navigation, opacity, translateY, t]);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
+  }, [navigation, t, isRTL]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
-      <Animated.ScrollView
+      <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
       >
         <View style={styles.headerContainer}>
-          <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
+          <View style={styles.logoContainer}>
             <Image
               source={require("../../../assets/images/farhannetLogo.png")}
               style={styles.logo}
               resizeMode="contain"
             />
-          </Animated.View>
+          </View>
         </View>
 
-        <Animated.View style={[styles.content, contentAnimatedStyle]}>
+        <View style={styles.content}>
           <View style={styles.welcomeSection}>
-            <Text style={styles.title}>{t("Welcome to Farhanict")}</Text>
+            <Text style={[styles.title, isRTL && styles.rtlText]}>
+              {t("Welcome to Farhanict")}
+            </Text>
             <View style={styles.titleUnderline} />
-            <Text style={styles.description}>
+            <Text style={[styles.description, isRTL && styles.rtlText]}>
               {t(
                 "At Farhanict, we are dedicated to delivering high-speed, reliable, and secure internet services to our customers. Our mission is to empower communities with cutting-edge technology and exceptional customer support."
               )}
@@ -167,84 +111,223 @@ const AboutScreen = () => {
           </View>
 
           <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
               {t("Why Choose Farhanict?")}
             </Text>
 
             {features.map((feature, index) => (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.featureCardContainer,
-                  featureAnimatedStyles[index],
-                ]}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.featureCard}
-                >
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      { backgroundColor: `${colors.primary}19` },
-                    ]}
-                  >
-                    <Icon
-                      name={feature.icon}
-                      size={28}
-                      color={colors.primary}
-                    />
-                  </View>
-                  <View style={styles.featureContent}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    <Text style={styles.featureDescription}>
-                      {feature.description}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
+              <View key={index} style={styles.featureCardContainer}>
+                <View style={styles.featureCard}>
+                  {isRTL ? (
+                    // RTL layout - icon on right
+                    <>
+                      <View style={styles.featureContent}>
+                        <Text style={[styles.featureTitle, styles.rtlText]}>
+                          {feature.title}
+                        </Text>
+                        <Text
+                          style={[styles.featureDescription, styles.rtlText]}
+                        >
+                          {feature.description}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.iconContainer,
+                          {
+                            backgroundColor: `${colors.primary}19`,
+                            marginLeft: 16,
+                            marginRight: 0,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={feature.icon}
+                          size={28}
+                          color={colors.primary}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    // LTR layout - icon on left
+                    <>
+                      <View
+                        style={[
+                          styles.iconContainer,
+                          { backgroundColor: `${colors.primary}19` },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={feature.icon}
+                          size={28}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View style={styles.featureContent}>
+                        <Text style={styles.featureTitle}>{feature.title}</Text>
+                        <Text style={styles.featureDescription}>
+                          {feature.description}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </View>
             ))}
           </View>
 
           <View style={styles.valuesSection}>
-            <Text style={styles.sectionTitle}>{t("our-values")}</Text>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("our-values")}
+            </Text>
             <View style={styles.valuesContainer}>
               <View style={styles.valueItem}>
-                <Icon name="thumb-up" size={24} color={colors.primary} />
-                <Text style={styles.valueText}>{t("Quality Service")}</Text>
+                <MaterialIcons
+                  name="thumb-up"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={[styles.valueText, isRTL && styles.rtlText]}>
+                  {t("Quality Service")}
+                </Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="lightbulb" size={24} color={colors.primary} />
-                <Text style={styles.valueText}>{t("Innovation")}</Text>
+                <MaterialIcons
+                  name="lightbulb"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={[styles.valueText, isRTL && styles.rtlText]}>
+                  {t("Innovation")}
+                </Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="people" size={24} color={colors.primary} />
-                <Text style={styles.valueText}>{t("community")}</Text>
+                <MaterialIcons name="people" size={24} color={colors.primary} />
+                <Text style={[styles.valueText, isRTL && styles.rtlText]}>
+                  {t("community")}
+                </Text>
               </View>
               <View style={styles.valueItem}>
-                <Icon name="verified-user" size={24} color={colors.primary} />
-                <Text style={styles.valueText}>{t("integrity")}</Text>
+                <MaterialIcons
+                  name="verified-user"
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={[styles.valueText, isRTL && styles.rtlText]}>
+                  {t("integrity")}
+                </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.contactSection}>
-            <Text style={styles.contactText}>
+            <Text style={[styles.contactText, isRTL && styles.rtlText]}>
               {t("Have questions or need assistance with your service?")}
             </Text>
             <Link href={{ pathname: "/screens/Contact" }} asChild>
-              <TouchableOpacity style={styles.contactButton}>
-                <Text style={styles.buttonText}>{t("Get in Touch")}</Text>
-                <Icon
-                  name="arrow-forward"
-                  size={20}
-                  color={colors.background}
-                />
+              <TouchableOpacity
+                style={styles.contactButton}
+                activeOpacity={0.8}
+              >
+                {isRTL ? (
+                  <>
+                    <MaterialIcons
+                      name="arrow-back"
+                      size={20}
+                      color={colors.background}
+                    />
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { marginLeft: 8, marginRight: 0 },
+                      ]}
+                    >
+                      {t("Get in Touch")}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.buttonText}>{t("Get in Touch")}</Text>
+                    <MaterialIcons
+                      name="arrow-forward"
+                      size={20}
+                      color={colors.background}
+                    />
+                  </>
+                )}
               </TouchableOpacity>
             </Link>
           </View>
-        </Animated.View>
-      </Animated.ScrollView>
+
+          {/* Company Stats Section */}
+          <View style={styles.statsSection}>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("Company Stats")}
+            </Text>
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNumber, isRTL && styles.rtlText]}>
+                  5+
+                </Text>
+                <Text style={[styles.statLabel, isRTL && styles.rtlText]}>
+                  {t("Years of Service")}
+                </Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNumber, isRTL && styles.rtlText]}>
+                  1000+
+                </Text>
+                <Text style={[styles.statLabel, isRTL && styles.rtlText]}>
+                  {t("Happy Customers")}
+                </Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNumber, isRTL && styles.rtlText]}>
+                  99.9%
+                </Text>
+                <Text style={[styles.statLabel, isRTL && styles.rtlText]}>
+                  {t("Uptime")}
+                </Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statNumber, isRTL && styles.rtlText]}>
+                  24/7
+                </Text>
+                <Text style={[styles.statLabel, isRTL && styles.rtlText]}>
+                  {t("support")}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* FAQ Section */}
+          <View style={styles.faqSection}>
+            <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
+              {t("Frequently Asked Questions")}
+            </Text>
+            <View style={styles.faqItem}>
+              <Text style={[styles.faqQuestion, isRTL && styles.rtlText]}>
+                {t("How do I upgrade my plan?")}
+              </Text>
+              <Text style={[styles.faqAnswer, isRTL && styles.rtlText]}>
+                {t(
+                  "You can easily upgrade your plan by contacting our customer support team."
+                )}
+              </Text>
+            </View>
+            <View style={styles.faqItem}>
+              <Text style={[styles.faqQuestion, isRTL && styles.rtlText]}>
+                {t("What areas do you service?")}
+              </Text>
+              <Text style={[styles.faqAnswer, isRTL && styles.rtlText]}>
+                {t(
+                  "We currently provide service in major cities and surrounding areas. Contact us to check availability in your location."
+                )}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -262,7 +345,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   headerContainer: {
-    height: 180,
+    height: 150,
     width: "100%",
     backgroundColor: colors.background,
     justifyContent: "center",
@@ -273,22 +356,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   logo: {
-    width: 220,
-    height: 100,
+    width: 200,
+    height: 90,
   },
   content: {
     paddingHorizontal: 20,
   },
   welcomeSection: {
-    marginTop: 20,
+    marginTop: 10,
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "700",
     color: colors.text,
     marginBottom: 10,
     textAlign: "center",
+  },
+  rtlText: {
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   titleUnderline: {
     width: 60,
@@ -325,7 +412,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: cardWidth,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
@@ -337,7 +424,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 5,
+        elevation: 3,
       },
     }),
   },
@@ -402,7 +489,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 30,
   },
   contactText: {
     fontSize: 16,
@@ -427,5 +514,65 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.background,
     marginRight: 8,
+  },
+  statsSection: {
+    marginBottom: 30,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  statItem: {
+    width: "48%",
+    backgroundColor: colors.primary + "10",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: colors.text,
+    textAlign: "center",
+  },
+  faqSection: {
+    marginBottom: 30,
+  },
+  faqItem: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  faqQuestion: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 8,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    color: colors.textMuted,
+    lineHeight: 20,
+  },
+  viewMoreButton: {
+    alignSelf: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: 10,
+  },
+  viewMoreText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: "600",
   },
 });

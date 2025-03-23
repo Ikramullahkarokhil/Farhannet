@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Drawer } from "expo-router/drawer";
 import {
@@ -7,51 +7,26 @@ import {
   DrawerItem,
 } from "@react-navigation/drawer";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useNavigation } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useActionSheet } from "@expo/react-native-action-sheet";
 import { useTranslation } from "react-i18next";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 import apiStore from "../../components/api/apiStore";
-import { Dialog, Portal, Button, PaperProvider } from "react-native-paper";
 import colors from "../../components/theme";
 import { MaterialIcons } from "@expo/vector-icons";
 
-// HeaderRight with Reanimated 3
 const HeaderRight = () => {
   const navigation = useNavigation();
-  const scaleValue = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scaleValue.value }],
-    };
-  });
-
-  const onPressIn = () => {
-    scaleValue.value = withSpring(0.9);
-  };
-
-  const onPressOut = () => {
-    scaleValue.value = withSpring(1);
-    navigation.toggleDrawer();
-  };
 
   return (
-    <TouchableOpacity
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      style={styles.headerButton}
-    >
-      <Animated.View style={animatedStyle}>
+    <View style={styles.headerRightContainer}>
+      <TouchableOpacity
+        onPress={() => navigation.toggleDrawer()}
+        style={styles.headerButton}
+      >
         <Ionicons name="menu" size={28} color={colors.text} />
-      </Animated.View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -60,10 +35,10 @@ const CustomDrawerContent = (props) => {
   const { t, i18n } = useTranslation();
   const { showActionSheetWithOptions } = useActionSheet();
   const { user, logout } = apiStore();
-  const [visible, setVisible] = React.useState(false);
 
-  const showDialog = () => setVisible(true);
-  const hideDialog = () => setVisible(false);
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   const changeLanguage = async (lng) => {
     await i18n.changeLanguage(lng);
@@ -71,9 +46,7 @@ const CustomDrawerContent = (props) => {
   };
 
   const handleChangePassword = async () => {
-    if (!user) {
-      showDialog();
-    } else {
+    if (user) {
       router.navigate("/screens/ChangePassword");
     }
   };
@@ -111,145 +84,256 @@ const CustomDrawerContent = (props) => {
     );
   };
 
+  // Custom drawer item renderer for RTL support
+  const renderDrawerItem = (route, index) => {
+    const { options } = props.descriptors[route.key];
+    const label =
+      options.drawerLabel !== undefined
+        ? options.drawerLabel
+        : options.title !== undefined
+        ? options.title
+        : route.name;
+
+    const isFocused = props.state.index === index;
+
+    const onPress = () => {
+      const event = props.navigation.emit({
+        type: "tabPress",
+        target: route.key,
+        canPreventDefault: true,
+      });
+
+      if (!isFocused && !event.defaultPrevented) {
+        props.navigation.navigate(route.name);
+      }
+    };
+
+    return (
+      <DrawerItem
+        key={route.key}
+        label={label}
+        icon={({ size, color }) => {
+          if (options.drawerIcon) {
+            return options.drawerIcon({ size, color, focused: isFocused });
+          }
+          return null;
+        }}
+        onPress={onPress}
+        focused={isFocused}
+        activeTintColor={props.activeTintColor}
+        inactiveTintColor={props.inactiveTintColor}
+        activeBackgroundColor={props.activeBackgroundColor}
+        inactiveBackgroundColor={props.inactiveBackgroundColor}
+        style={styles.drawerItem}
+        labelStyle={[styles.drawerLabel, isRTL && styles.rtlText]}
+      />
+    );
+  };
+
   return (
-    <PaperProvider>
-      <View style={styles.drawerContainer}>
-        <DrawerContentScrollView {...props}>
-          <View style={styles.drawerHeader}>
-            <View style={styles.avatarContainer}>
-              <Ionicons name="person-circle" size={60} color={colors.primary} />
-            </View>
-            <View>
-              {user ? (
-                <>
-                  <Text style={styles.drawerHeaderText} numberOfLines={1}>
-                    {user.first_name} {user.last_name}
-                  </Text>
-
-                  <Text style={styles.drawerSubText}>@{user.username}</Text>
-                </>
-              ) : (
-                <Text style={styles.drawerHeaderText} numberOfLines={1}>
-                  farhanict.com
-                </Text>
-              )}
-            </View>
+    <View style={styles.drawerContainer}>
+      <DrawerContentScrollView {...props}>
+        <View style={[styles.drawerHeader, isRTL && styles.rtlFlexRow]}>
+          <View style={styles.avatarContainer}>
+            <Ionicons name="person-circle" size={60} color={colors.primary} />
           </View>
+          <View style={isRTL ? { alignItems: "flex-end" } : {}}>
+            {user ? (
+              <>
+                <Text
+                  style={[styles.drawerHeaderText, isRTL && styles.rtlText]}
+                  numberOfLines={1}
+                >
+                  {user.first_name} {user.last_name}
+                </Text>
 
-          <View style={styles.seperator} />
-
-          <DrawerItemList {...props} />
-
-          <DrawerItem
-            label={t("speed-test")}
-            icon={({ size, color }) => (
-              <Ionicons name="speedometer-outline" size={size} color={color} />
+                <Text style={[styles.drawerSubText, isRTL && styles.rtlText]}>
+                  @{user.username}
+                </Text>
+              </>
+            ) : (
+              <Text
+                style={[styles.drawerHeaderText, isRTL && styles.rtlText]}
+                numberOfLines={1}
+              >
+                farhanict.com
+              </Text>
             )}
-            onPress={() => router.navigate("/screens/SpeedTest")}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+          </View>
+        </View>
 
-          <View style={styles.seperator} />
+        <View style={styles.seperator} />
 
-          <DrawerItem
-            label={t("language")}
-            icon={({ size, color }) => (
-              <Ionicons name="language" size={size} color={color} />
-            )}
-            onPress={handleLanguageChange}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        <View>
+          {props.state.routes.map((route, index) =>
+            renderDrawerItem(route, index)
+          )}
+        </View>
 
-          <DrawerItem
-            label={t("change-password")}
-            icon={({ size, color }) => (
-              <Ionicons name="lock-closed-outline" size={size} color={color} />
-            )}
-            onPress={handleChangePassword}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
-          <View style={styles.seperator} />
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("speed-test")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Ionicons name="speedometer-outline" size={size} color={color} />
+          )}
+          onPress={() => router.navigate("/screens/SpeedTest")}
+          style={styles.languageButton}
+        />
 
-          <DrawerItem
-            label={t("internet-usage")}
-            icon={({ size, color }) => (
-              // <Ionicons name="lock-closed-outline" size={size} color={color} />
-              <MaterialIcons name="data-usage" size={size} color={color} />
-            )}
-            onPress={() => router.navigate("/screens/InternetUsage")}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        <View style={styles.seperator} />
 
-          <View style={styles.seperator} />
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("language")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Ionicons name="language" size={size} color={color} />
+          )}
+          onPress={handleLanguageChange}
+          style={styles.languageButton}
+        />
 
-          <DrawerItem
-            label={t("contact-us")}
-            icon={({ size, color }) => (
-              <Image
-                source={require("../../assets/icons/contact-us.png")}
-                style={{ width: size, height: size, tintColor: color }}
-              />
-            )}
-            onPress={() => {
-              router.navigate("/screens/Contact");
-            }}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                !user && styles.disabledLabel,
+                focused && !user
+                  ? {}
+                  : focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("change-password")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Ionicons name="lock-closed-outline" size={size} color={color} />
+          )}
+          onPress={handleChangePassword}
+          style={[styles.languageButton, !user && styles.disabledButton]}
+          disabled={!user}
+        />
+        <View style={styles.seperator} />
 
-          <DrawerItem
-            label={t("about-us")}
-            icon={({ size, color }) => (
-              <Image
-                source={require("../../assets/icons/about-us.png")}
-                style={{ width: size, height: size, tintColor: color }}
-              />
-            )}
-            onPress={() => {
-              router.navigate("/screens/About");
-            }}
-            style={styles.languageButton}
-            labelStyle={styles.languageLabel}
-          />
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("internet-usage")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <MaterialIcons name="data-usage" size={size} color={color} />
+          )}
+          onPress={() => router.navigate("/screens/InternetUsage")}
+          style={styles.languageButton}
+        />
 
-          <View style={styles.seperator} />
+        <View style={styles.seperator} />
 
-          <DrawerItem
-            label={t("logout")}
-            icon={({ size, color }) => (
-              <Ionicons name="log-out-outline" size={size} color={color} />
-            )}
-            onPress={handleLogout}
-            style={styles.logoutItem}
-            labelStyle={styles.logoutLabel}
-          />
-        </DrawerContentScrollView>
-      </View>
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("contact-us")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Image
+              source={require("../../assets/icons/contact-us.png")}
+              style={{ width: size, height: size, tintColor: color }}
+            />
+          )}
+          onPress={() => {
+            router.navigate("/screens/Contact");
+          }}
+          style={styles.languageButton}
+        />
 
-      <Portal>
-        <Dialog visible={visible} onDismiss={hideDialog}>
-          <Dialog.Title>{t("login-required")}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{t("please-login-to-access-this-feature")}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideDialog}>{t("cancel")}</Button>
-            <Button onPress={() => router.replace("Login")}>
-              {t("login")}
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    </PaperProvider>
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.languageLabel,
+                isRTL && styles.rtlText,
+                focused && { color: props.activeTintColor },
+              ]}
+            >
+              {t("about-us")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Image
+              source={require("../../assets/icons/about-us.png")}
+              style={{ width: size, height: size, tintColor: color }}
+            />
+          )}
+          onPress={() => {
+            router.navigate("/screens/About");
+          }}
+          style={styles.languageButton}
+        />
+
+        <View style={styles.seperator} />
+
+        <DrawerItem
+          label={({ color, focused }) => (
+            <Text
+              style={[
+                styles.logoutLabel,
+                isRTL && styles.rtlText,
+                focused && { color: colors.danger },
+              ]}
+            >
+              {t("logout")}
+            </Text>
+          )}
+          icon={({ size, color }) => (
+            <Ionicons name="log-out-outline" size={size} color={color} />
+          )}
+          onPress={handleLogout}
+          style={styles.logoutItem}
+        />
+      </DrawerContentScrollView>
+    </View>
   );
 };
 
 const Layout = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   const renderIcon = ({ name, focused, color, size }) => (
     <View style={styles.iconContainer}>
@@ -265,8 +349,8 @@ const Layout = () => {
     <Drawer
       screenOptions={{
         headerTitleAlign: "center",
-        headerTitleStyle: styles.headerTitle,
-        drawerPosition: "right",
+        headerTitleStyle: [styles.headerTitle, isRTL && styles.rtlText],
+        drawerPosition: "right", // Always keep drawer on right side
         drawerType: "slide",
         headerLeft: () => null,
         headerRight: () => <HeaderRight />,
@@ -274,7 +358,7 @@ const Layout = () => {
         drawerActiveTintColor: colors.primary,
         drawerInactiveTintColor: colors.textMuted,
         drawerItemStyle: styles.drawerItem,
-        drawerLabelStyle: styles.drawerLabel,
+        drawerLabelStyle: [styles.drawerLabel, isRTL && styles.rtlText],
       }}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
@@ -292,8 +376,12 @@ const Layout = () => {
 
 const styles = StyleSheet.create({
   headerButton: {
-    marginRight: 15,
     padding: 5,
+    marginRight: 15,
+  },
+  headerRightContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 20,
@@ -314,9 +402,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingTop: 10,
   },
+  rtlFlexRow: {
+    flexDirection: "row-reverse",
+  },
+  rtlText: {
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
   avatarContainer: {
     marginBottom: 15,
     alignItems: "center",
+    marginHorizontal: 10,
   },
   drawerHeaderText: {
     fontSize: 20,
@@ -365,6 +461,12 @@ const styles = StyleSheet.create({
   languageLabel: {
     fontWeight: "500",
     color: colors.text,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  disabledLabel: {
+    color: colors.textMuted,
   },
 });
 
