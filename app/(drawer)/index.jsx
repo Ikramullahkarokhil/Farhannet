@@ -1,5 +1,3 @@
-"use client";
-
 import React, {
   useLayoutEffect,
   useEffect,
@@ -111,6 +109,14 @@ const Index = () => {
     return i18n.language === "pa" || i18n.language === "da";
   }, [i18n.language]);
 
+  const formatDateWithShortMonth = useCallback((dateString) => {
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }, []);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
@@ -189,7 +195,7 @@ const Index = () => {
     : 0;
   const isExpired = activePackage?.status === "Expire";
   const isWarning =
-    activePackage && activePackage.status !== "Expire" && daysLeft <= 3;
+    activePackage && activePackage.status !== "Expire" && daysLeft <= 7;
 
   const getTitle = useCallback(
     (category) => {
@@ -219,7 +225,19 @@ const Index = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Render current package section */}
-        <View style={styles.section}>
+        <View
+          style={[
+            styles.section,
+            {
+              borderColor: isExpired
+                ? colors.danger
+                : isWarning
+                ? colors.secondary2
+                : "transparent",
+              borderWidth: 1,
+            },
+          ]}
+        >
           <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
             {t("current-plan")}
           </Text>
@@ -253,6 +271,8 @@ const Index = () => {
                       >
                         {isExpired
                           ? t("expired")
+                          : daysLeft === 0
+                          ? t("last-day")
                           : `${daysLeft} ${t("days-left")}`}
                       </Text>
                     </View>
@@ -272,8 +292,12 @@ const Index = () => {
 
                   <Text style={[styles.expiryDate, isRTL && styles.rtlText]}>
                     {isExpired
-                      ? `${t("expired")}: ${activePackage.expiry_date}`
-                      : `${t("expires")}: ${activePackage.expiry_date}`}
+                      ? `${t("expired")}: ${formatDateWithShortMonth(
+                          activePackage.expiry_date
+                        )}`
+                      : `${t("expires")}: ${formatDateWithShortMonth(
+                          activePackage.expiry_date
+                        )}`}
                   </Text>
                 </View>
               </View>

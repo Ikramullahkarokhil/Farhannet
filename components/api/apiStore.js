@@ -105,6 +105,30 @@ const apiStore = create(
         }
       },
 
+      fetchFrequantlyQuestions: async () => {
+        try {
+          set({ loading: true });
+          const response = await api.get(`/ict/faq`);
+          set({ loading: false });
+          return response.data.data;
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
+      fetchAppVersions: async () => {
+        try {
+          set({ loading: true });
+          const response = await api.get(`/ict/mobile-versions`);
+          set({ loading: false });
+          return response.data.data;
+        } catch (error) {
+          const errorMessage = error.response?.data?.message || error.message;
+          throw new Error(errorMessage);
+        }
+      },
+
       changePassword: async ({ customerId, password }) => {
         try {
           set({ loading: true });

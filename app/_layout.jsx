@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import { Stack, useRouter } from "expo-router";
@@ -13,46 +15,75 @@ import i18next from "../locales/languageConfig";
 import * as Notifications from "expo-notifications";
 import apiStore from "../components/api/apiStore";
 import colors from "../components/theme";
+import Constants from "expo-constants";
+import { checkForUpdate } from "../components/utils/VersionUtils";
+import UpdateModal from "../components/ui/UpdateModal";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 const Layout = () => {
   const router = useRouter();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [appIsReady, setAppIsReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const notificationListener = useRef();
   const responseListener = useRef();
   const appInitialized = useRef(false);
+  const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [latestVersion, setLatestVersion] = useState(null);
+  const [versionData, setVersionData] = useState([]);
+
+  const currentVersion = Constants.expoConfig?.version || "1.0.0";
 
   const {
     fetchAllPakages,
     fetchCustomerPackage,
     fetchCustomerComplaints,
     fetchUpdates,
+    fetchAppVersions,
     user,
   } = apiStore();
 
   useEffect(() => {
     const getData = async () => {
-      const netState = await NetInfo.fetch();
-      if (netState.isConnected) {
-        await fetchAllPakages().catch((error) =>
-          console.warn("Failed to fetch packages:", error)
-        );
-        if (user) {
-          await Promise.all([
-            fetchCustomerPackage(user.id),
-            fetchUpdates(),
-            fetchCustomerComplaints(user.id),
+      try {
+        const netState = await NetInfo.fetch();
+        if (netState.isConnected) {
+          const [versions, packages] = await Promise.all([
+            fetchAppVersions(),
+            fetchAllPakages(),
           ]);
+          setVersionData(versions);
+          if (versions && versions.length > 0) {
+            const updateNeeded = checkForUpdate(currentVersion, versions);
+            if (updateNeeded) {
+              setLatestVersion(updateNeeded);
+              setUpdateModalVisible(true);
+            }
+          }
+
+          if (user) {
+            await Promise.all([
+              fetchCustomerPackage(user.id),
+              fetchUpdates(),
+              fetchCustomerComplaints(user.id),
+            ]);
+          }
         }
+      } catch (error) {
+        console.error("Error fetching data:", error);
       }
     };
 
     getData();
-  }, [fetchAllPakages, fetchCustomerPackage, fetchCustomerComplaints, user]);
+  }, [
+    fetchAllPakages,
+    fetchCustomerPackage,
+    fetchCustomerComplaints,
+    fetchUpdates,
+    user,
+  ]);
 
   // Setup notification handlers
   useEffect(() => {
@@ -63,7 +94,7 @@ const Layout = () => {
 
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content.data;
+        const data = response.notification.request.content.data; // Fix typo here
         console.log("Notification response received:", data);
 
         if (data.updateId) {
@@ -112,7 +143,7 @@ const Layout = () => {
     };
 
     prepare();
-  }, [i18n, fetchCustomerPackage, fetchCustomerComplaints, user]);
+  }, [i18n, user]);
 
   // Handle navigation after app is ready
   useEffect(() => {
@@ -158,6 +189,17 @@ const Layout = () => {
                 }}
               />
             </Stack>
+
+            {/* Render the modal inside PaperProvider */}
+            {latestVersion && (
+              <UpdateModal
+                visible={updateModalVisible}
+                onClose={() => setUpdateModalVisible(false)}
+                latestVersion={latestVersion.version}
+                currentVersion={currentVersion}
+                versionData={versionData}
+              />
+            )}
           </PaperProvider>
         </ActionSheetProvider>
       </GestureHandlerRootView>

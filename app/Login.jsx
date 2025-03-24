@@ -33,6 +33,7 @@ const Login = () => {
 
   const [values, setValues] = useState({ username: "", password: "" });
   const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -89,6 +90,9 @@ const Login = () => {
     setIsSubmitting(true);
     setStatus(null);
 
+    // Mark all fields as touched when submitting
+    setTouched({ username: true, password: true });
+
     const isValid = await validateForm();
 
     if (isValid) {
@@ -141,20 +145,20 @@ const Login = () => {
   );
 
   return (
-    <View style={containerStyle}>
+    <View style={[styles.container, { flex: 1 }]}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
+          contentContainerStyle={[styles.scrollContainer, { flexGrow: 1 }]}
           keyboardShouldPersistTaps="handled"
         >
           <View
             style={[
               styles.innerContainer,
-              { maxWidth: isTablet ? 500 : 400 },
+              { maxWidth: isTablet ? 500 : 400, width: "100%" },
               isRTL && styles.rtlInnerContainer,
             ]}
           >
@@ -166,7 +170,7 @@ const Login = () => {
               />
             </View>
 
-            <Text style={[styles.subtitle]}>{t("signin-to-continue")}</Text>
+            <Text style={styles.subtitle}>{t("signin-to-continue")}</Text>
 
             <View style={styles.inputContainer}>
               <Text style={textStyle}>{t("username")}</Text>
@@ -174,7 +178,9 @@ const Login = () => {
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "username" && styles.inputWrapperFocused,
-                  errors.username && styles.inputWrapperError,
+                  touched.username &&
+                    errors.username &&
+                    styles.inputWrapperError,
                   isRTL && styles.rtlIconInputWrapper,
                 ]}
               >
@@ -196,12 +202,15 @@ const Login = () => {
                   onChangeText={handleChange("username")}
                   autoCapitalize="none"
                   onFocus={() => setFocusedField("username")}
-                  onBlur={() => setFocusedField(null)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    setTouched((prev) => ({ ...prev, username: true }));
+                  }}
                   textAlign={isRTL ? "right" : "left"}
                 />
               </View>
               <View style={styles.errorContainer}>
-                {errors.username && (
+                {touched.username && errors.username && (
                   <Text style={[styles.errorText, isRTL && styles.rtlText]}>
                     {errors.username}
                   </Text>
@@ -215,7 +224,9 @@ const Login = () => {
                 style={[
                   styles.iconInputWrapper,
                   focusedField === "password" && styles.inputWrapperFocused,
-                  errors.password && styles.inputWrapperError,
+                  touched.password &&
+                    errors.password &&
+                    styles.inputWrapperError,
                   isRTL && styles.rtlIconInputWrapper,
                 ]}
               >
@@ -238,7 +249,10 @@ const Login = () => {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   onFocus={() => setFocusedField("password")}
-                  onBlur={() => setFocusedField(null)}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    setTouched((prev) => ({ ...prev, password: true }));
+                  }}
                   textAlign={isRTL ? "right" : "left"}
                 />
                 <TouchableOpacity
@@ -253,7 +267,7 @@ const Login = () => {
                 </TouchableOpacity>
               </View>
               <View style={styles.errorContainer}>
-                {errors.password && (
+                {touched.password && errors.password && (
                   <Text style={[styles.errorText, isRTL && styles.rtlText]}>
                     {errors.password}
                   </Text>

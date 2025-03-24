@@ -1,6 +1,4 @@
-"use client";
-
-import { useLayoutEffect, useMemo } from "react";
+import { useLayoutEffect, useMemo, useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -11,18 +9,26 @@ import {
   Platform,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Link, useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
 import colors from "../../../components/theme";
+import apiStore from "../../../components/api/apiStore";
+import NetInfo from "@react-native-community/netinfo";
 
 const { width } = Dimensions.get("window");
-const cardWidth = width * 0.9; // Slightly wider cards for better readability
+const cardWidth = width * 0.9;
 
 const AboutScreen = () => {
   const navigation = useNavigation();
   const { t, i18n } = useTranslation();
+  const [faqs, setFaqs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const { fetchFrequantlyQuestions } = apiStore();
 
   // Check if language is RTL (Pashto or Dari)
   const isRTL = useMemo(() => {
@@ -60,6 +66,59 @@ const AboutScreen = () => {
       ),
     },
   ];
+
+  // Fetch FAQs from API
+  const fetchFAQs = async () => {
+    try {
+      setLoading(true);
+      const response = await fetchFrequantlyQuestions();
+      setFaqs(response);
+      setCurrentPage(response.current_page);
+      setTotalPages(response.last_page);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching FAQs:", error);
+      setLoading(false);
+    }
+  };
+
+  // Load FAQs on component mount
+  useEffect(() => {
+    const getData = async () => {
+      const netState = await NetInfo.fetch();
+      if (netState.isConnected) {
+        fetchFAQs();
+      }
+    };
+    getData();
+  }, []);
+
+  // Load next page of FAQs
+  const loadMoreFAQs = () => {
+    if (currentPage < totalPages && !loading) {
+      fetchFAQs(currentPage + 1);
+    }
+  };
+
+  // Get FAQ question and answer based on current language
+  const getLocalizedFAQ = (faq) => {
+    if (i18n.language === "pa" && faq.question_ps && faq.answer_ps) {
+      return {
+        question: faq.question_ps,
+        answer: faq.answer_ps,
+      };
+    } else if (i18n.language === "da" && faq.question_dr && faq.answer_dr) {
+      return {
+        question: faq.question_dr,
+        answer: faq.answer_dr,
+      };
+    } else {
+      return {
+        question: faq.question_en,
+        answer: faq.answer_en,
+      };
+    }
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -300,31 +359,49 @@ const AboutScreen = () => {
             </View>
           </View>
 
-          {/* FAQ Section */}
+          {/* Dynamic FAQ Section */}
           <View style={styles.faqSection}>
             <Text style={[styles.sectionTitle, isRTL && styles.rtlText]}>
               {t("Frequently Asked Questions")}
             </Text>
-            <View style={styles.faqItem}>
-              <Text style={[styles.faqQuestion, isRTL && styles.rtlText]}>
-                {t("How do I upgrade my plan?")}
-              </Text>
-              <Text style={[styles.faqAnswer, isRTL && styles.rtlText]}>
-                {t(
-                  "You can easily upgrade your plan by contacting our customer support team."
+
+            {loading && faqs.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            ) : (
+              <>
+                {faqs.map((faq) => {
+                  const localizedFAQ = getLocalizedFAQ(faq);
+                  return (
+                    <View key={faq.id} style={styles.faqItem}>
+                      <Text
+                        style={[styles.faqQuestion, isRTL && styles.rtlText]}
+                      >
+                        {localizedFAQ.question}
+                      </Text>
+                      <Text style={[styles.faqAnswer, isRTL && styles.rtlText]}>
+                        {localizedFAQ.answer}
+                      </Text>
+                    </View>
+                  );
+                })}
+
+                {currentPage < totalPages && (
+                  <TouchableOpacity
+                    style={styles.viewMoreButton}
+                    onPress={loadMoreFAQs}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={styles.viewMoreText}>{t("View More")}</Text>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </Text>
-            </View>
-            <View style={styles.faqItem}>
-              <Text style={[styles.faqQuestion, isRTL && styles.rtlText]}>
-                {t("What areas do you service?")}
-              </Text>
-              <Text style={[styles.faqAnswer, isRTL && styles.rtlText]}>
-                {t(
-                  "We currently provide service in major cities and surrounding areas. Contact us to check availability in your location."
-                )}
-              </Text>
-            </View>
+              </>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -574,5 +651,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
     fontWeight: "600",
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
   },
 });

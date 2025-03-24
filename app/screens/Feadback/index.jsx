@@ -1,6 +1,4 @@
-"use client";
-
-import {
+import React, {
   useLayoutEffect,
   useState,
   useRef,
@@ -20,6 +18,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
@@ -28,7 +27,7 @@ import colors from "../../../components/theme";
 import apiStore from "../../../components/api/apiStore";
 import { Image } from "react-native";
 
-// Extracted helper function so it won't be recreated on every render.
+// Helper function to get status color
 const getStatusColor = (status) => {
   switch (status) {
     case "Pending":
@@ -48,7 +47,7 @@ const getStatusColor = (status) => {
   }
 };
 
-// Message component: memoized to avoid unnecessary re-renders.
+// Message component: memoized for performance
 const Message = memo(({ item, index, messages }) => {
   const isSequential =
     index > 0 &&
@@ -143,7 +142,7 @@ const Message = memo(({ item, index, messages }) => {
   );
 });
 
-// Simplified empty state component without animations
+// Simplified empty state component
 const EmptyState = memo(({ t }) => {
   return (
     <View style={styles.emptyContainer}>
@@ -170,42 +169,123 @@ const Index = () => {
   const flatListRef = useRef(null);
   const inputRef = useRef(null);
   const { complaints, addComplain, user, fetchCustomerComplaints } = apiStore();
-  const shouldScrollToBottomRef = useRef(false);
+
+  // For initial rendering at the bottom
+  const [isReady, setIsReady] = useState(false);
+  const [initialRender, setInitialRender] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [listHeight, setListHeight] = useState(0);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  // For floating date header
+  const [currentDate, setCurrentDate] = useState("");
+  const [showDateHeader, setShowDateHeader] = useState(false);
+  const dateHeaderOpacity = useRef(new Animated.Value(0)).current;
+  const dateHeaderY = useRef(new Animated.Value(-40)).current;
+
+  // Show/hide date header with animation
+  const animateDateHeader = (show) => {
+    Animated.parallel([
+      Animated.timing(dateHeaderOpacity, {
+        toValue: show ? 1 : 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dateHeaderY, {
+        toValue: show ? 0 : -40,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setShowDateHeader(show);
+  };
+
+  const handleScroll = (event) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const height = event.nativeEvent.layoutMeasurement.height;
+    const totalContentHeight = event.nativeEvent.contentSize.height;
+    const distanceFromBottom = totalContentHeight - height - offsetY;
+
+    // Show the scroll-to-bottom button if user is more than 500 pixels away
+    setShowScrollToBottom(distanceFromBottom > 500);
+
+    // Find the date of the message currently at the top of the visible area
+    if (combinedMessages.length > 0 && flatListRef.current) {
+      const visibleIndex = Math.floor(offsetY / 80); // Approximate height of a message
+      const safeIndex = Math.min(
+        Math.max(0, visibleIndex),
+        combinedMessages.length - 1
+      );
+
+      const visibleDate = combinedMessages[safeIndex]?.date;
+
+      if (visibleDate && visibleDate !== currentDate) {
+        setCurrentDate(visibleDate);
+        if (!showDateHeader) {
+          animateDateHeader(true);
+        }
+      }
+    }
+
+    // Hide date header after 2 seconds of no scrolling
+    if (showDateHeader) {
+      clearTimeout(dateHeaderTimeout.current);
+      dateHeaderTimeout.current = setTimeout(() => {
+        animateDateHeader(false);
+      }, 2000);
+    }
+  };
+
+  // Timeout ref for hiding date header
+  const dateHeaderTimeout = useRef(null);
 
   useEffect(() => {
     const refreshPage = async () => {
       await fetchCustomerComplaints(user.id);
     };
     refreshPage();
-  }, []);
 
-  const getStatusMessage = useCallback((status) => {
-    switch (status) {
-      case "Pending":
-        return t(
-          "Your complaint has been received and is waiting for review by our team."
-        );
-      case "Process":
-        return t(
-          "We're currently working on your complaint. Our team is investigating the issue."
-        );
-      case "Complete":
-        return t(
-          "Your complaint has been resolved. Thank you for your patience."
-        );
-      case "Cancelled":
-        return t(
-          "This complaint has been canceled. Please contact support if you need further assistance."
-        );
-      case "Posting":
-        return t("We're sending your feedback to our team...");
-      case "Failed":
-        return t("Failed to send your feedback. Please try again later.");
-      default:
-        return t("We've received your feedback and will get back to you soon.");
-    }
-  }, []);
+    // Clear timeout on unmount
+    return () => {
+      if (dateHeaderTimeout.current) {
+        clearTimeout(dateHeaderTimeout.current);
+      }
+    };
+  }, [fetchCustomerComplaints, user.id]);
+
+  const getStatusMessage = useCallback(
+    (status) => {
+      switch (status) {
+        case "Pending":
+          return t(
+            "Your complaint has been received and is waiting for review by our team."
+          );
+        case "Process":
+          return t(
+            "We're currently working on your complaint. Our team is investigating the issue."
+          );
+        case "Complete":
+          return t(
+            "Your complaint has been resolved. Thank you for your patience."
+          );
+        case "Cancelled":
+          return t(
+            "This complaint has been canceled. Please contact support if you need further assistance."
+          );
+        case "Posting":
+          return t("We're sending your feedback to our team...");
+        case "Failed":
+          return t("Failed to send your feedback. Please try again later.");
+        default:
+          return t(
+            "We've received your feedback and will get back to you soon."
+          );
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (!complaints || !complaints.length) return;
@@ -267,6 +347,14 @@ const Index = () => {
         (msg) => !msg.tempId || !replacedTempIds.has(msg.tempId.toString())
       )
     );
+
+    // Set initial date if we have messages
+    if (allMessages.length > 0) {
+      setCurrentDate(allMessages[allMessages.length - 1].date);
+    }
+
+    // Mark data as ready
+    setIsReady(true);
   }, [complaints, getStatusMessage]);
 
   const combinedMessages = useMemo(() => {
@@ -276,27 +364,25 @@ const Index = () => {
     return [...messages, ...sortedTempMessages];
   }, [messages, tempMessages]);
 
+  // Memoize scrollToBottom for stability
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      if (flatListRef.current && contentHeight > listHeight) {
+        const offset = contentHeight - listHeight;
+        flatListRef.current.scrollToOffset({ offset, animated });
+      }
+    },
+    [contentHeight, listHeight]
+  );
+
+  // Scroll to bottom when new messages are added
   useEffect(() => {
-    if (shouldScrollToBottomRef.current && combinedMessages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      shouldScrollToBottomRef.current = false;
+    if (combinedMessages.length > 0) {
+      scrollToBottom(false);
     }
-  }, [combinedMessages]);
+  }, [combinedMessages.length, scrollToBottom]);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: t("feedback"),
-      headerStyle: {
-        backgroundColor: colors.background,
-      },
-      headerTitleStyle: {
-        color: colors.text,
-      },
-    });
-  }, [navigation, t]);
-
+  // Handle new message submission
   const submitFeedback = useCallback(async () => {
     if (feedback.trim() === "" || isSubmitting) return;
 
@@ -343,9 +429,12 @@ const Index = () => {
       createdAt: currentTimeMs + 1,
     };
 
+    // Append new feedback and response to temporary messages
     setTempMessages((prev) => [...prev, newFeedback, tempResponse]);
     setFeedback("");
-    shouldScrollToBottomRef.current = true;
+
+    // Scroll to bottom after adding new messages
+    setTimeout(() => scrollToBottom(true), 100);
 
     try {
       const response = await addComplain({
@@ -376,7 +465,7 @@ const Index = () => {
                 status: "Failed",
                 text: msg.isUser
                   ? msg.text
-                  : "Failed to send your feedback. Please try again later.",
+                  : t("Failed to send your feedback. Please try again later."),
               }
             : msg
         )
@@ -385,9 +474,28 @@ const Index = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [feedback, isSubmitting, getStatusMessage, addComplain, user.id]);
+  }, [
+    feedback,
+    isSubmitting,
+    getStatusMessage,
+    addComplain,
+    user.id,
+    t,
+    scrollToBottom,
+  ]);
 
-  // Wrap render function in useCallback for stable reference.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: t("feedback"),
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.text,
+      },
+    });
+  }, [navigation, t]);
+
   const renderMessage = useCallback(
     ({ item, index }) => (
       <Message item={item} index={index} messages={combinedMessages} />
@@ -397,17 +505,21 @@ const Index = () => {
 
   const keyExtractor = useCallback((item) => item.id, []);
 
-  const scrollToBottom = useCallback(() => {
-    if (combinedMessages.length > 0) {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }
-  }, [combinedMessages]);
-
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchCustomerComplaints(user.id);
     setRefreshing(false);
   };
+
+  // This is the key to starting at the bottom - we use initialScrollIndex
+  const getItemLayout = useCallback(
+    (data, index) => ({
+      length: 80, // approximate height of a message
+      offset: 80 * index,
+      index,
+    }),
+    []
+  );
 
   return (
     <View style={styles.outerContainer}>
@@ -420,33 +532,76 @@ const Index = () => {
           <EmptyState t={t} />
         ) : (
           <>
-            <FlatList
-              ref={flatListRef}
-              data={combinedMessages}
-              renderItem={renderMessage}
-              keyExtractor={keyExtractor}
-              contentContainerStyle={styles.messagesContainer}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-              windowSize={10}
-              removeClippedSubviews={Platform.OS === "android"}
-              onContentSizeChange={scrollToBottom}
-              onLayout={scrollToBottom}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={[colors.primary]}
-                  tintColor={colors.primary}
-                />
-              }
-            />
-            {combinedMessages.length > 10 && (
+            {/* Floating date header */}
+            <Animated.View
+              style={[
+                styles.floatingDateHeader,
+                {
+                  opacity: dateHeaderOpacity,
+                  transform: [{ translateY: dateHeaderY }],
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <Text style={styles.floatingDateText}>{currentDate}</Text>
+            </Animated.View>
+
+            {isReady && (
+              <FlatList
+                ref={flatListRef}
+                data={combinedMessages}
+                renderItem={renderMessage}
+                keyExtractor={keyExtractor}
+                contentContainerStyle={styles.messagesContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                initialNumToRender={20}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                removeClippedSubviews={Platform.OS === "android"}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                getItemLayout={getItemLayout}
+                // This is crucial - we initialize the list at the end
+                initialScrollIndex={
+                  initialRender ? combinedMessages.length - 1 : undefined
+                }
+                onScrollToIndexFailed={(info) => {
+                  // If scrolling to index fails, try again with a delay
+                  setTimeout(() => {
+                    if (flatListRef.current && combinedMessages.length > 0) {
+                      flatListRef.current.scrollToIndex({
+                        index: combinedMessages.length - 1,
+                        animated: false,
+                      });
+                    }
+                  }, 100);
+                }}
+                onContentSizeChange={(w, h) => {
+                  setContentHeight(h);
+                  // After first render, we don't need initialScrollIndex anymore
+                  if (initialRender) {
+                    setInitialRender(false);
+                  }
+                }}
+                onLayout={(event) => {
+                  setListHeight(event.nativeEvent.layout.height);
+                }}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={[colors.primary]}
+                    tintColor={colors.primary}
+                  />
+                }
+              />
+            )}
+
+            {combinedMessages.length > 10 && showScrollToBottom && (
               <Pressable
                 style={styles.scrollToBottomButton}
-                onPress={scrollToBottom}
+                onPress={() => scrollToBottom()}
               >
                 <Ionicons
                   name="chevron-down"
@@ -505,7 +660,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     padding: 16,
-    paddingBottom: 150,
+    paddingBottom: 120,
   },
   messageWrapper: {
     flexDirection: "row",
@@ -518,24 +673,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 4,
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${colors.primary}20`,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   logo: {
     height: 35,
     width: 35,
     borderRadius: 50,
     backgroundColor: colors.secondary,
-  },
-  avatarText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.primary,
   },
   dateSeparator: {
     alignItems: "center",
@@ -549,6 +691,27 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     overflow: "hidden",
+  },
+  // Floating date header styles
+  floatingDateHeader: {
+    position: "absolute",
+    top: 10,
+    alignSelf: "center",
+    zIndex: 10,
+    backgroundColor: `${colors.primary}E6`,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  floatingDateText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.background,
   },
   emptyContainer: {
     flex: 1,
