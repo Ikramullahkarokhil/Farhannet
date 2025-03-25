@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,26 +7,23 @@ import {
   Platform,
   useWindowDimensions,
   Alert,
+  Linking,
+  ScrollView,
   BackHandler,
 } from "react-native";
 import Modal from "react-native-modal";
 import { useTranslation } from "react-i18next";
 import * as Haptics from "expo-haptics";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as FileSystem from "expo-file-system";
 import { Feather } from "@expo/vector-icons";
 import colors from "../theme";
 
 const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
-  const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [latestVersionInfo, setLatestVersionInfo] = useState(null);
   const [isExpired, setIsExpired] = useState(false);
   const [expiryDate, setExpiryDate] = useState(null);
-  const [downloadTask, setDownloadTask] = useState(null);
-  const [downloadAttempts, setDownloadAttempts] = useState(0);
 
   useEffect(() => {
     if (versionData && versionData.length > 0) {
@@ -51,116 +48,56 @@ const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
     }
   }, [versionData, currentVersion]);
 
-  const downloadProgressCallback = ({
-    totalBytesWritten,
-    totalBytesExpectedToWrite,
-  }) => {
-    const progressValue = totalBytesWritten / totalBytesExpectedToWrite;
-    setDownloadProgress(progressValue);
-  };
-
-  const handleUpdate = async (attempt = 1, maxAttempts = 3) => {
-    if (Platform.OS === "ios") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      console.log("iOS requires App Store or TestFlight updates.");
-      return;
-    }
-
+  const handleUpdate = async () => {
     if (!latestVersionInfo?.url) {
       console.error("No URL provided for update.");
       return;
     }
 
+    if (Platform.OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // For iOS, just open the URL directly
+      await Linking.openURL(latestVersionInfo.url);
+      onClose();
+      return;
+    }
+
     setIsDownloading(true);
-    setDownloadAttempts((prev) => prev + 1);
-    const downloadPath = `${FileSystem.cacheDirectory}update.apk`;
 
     try {
-      // Clean up existing file
-      const fileInfo = await FileSystem.getInfoAsync(downloadPath);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(downloadPath);
-        console.log("Cleared old file");
+      // For Android, open the URL in browser
+      const canOpen = await Linking.canOpenURL(latestVersionInfo.url);
+
+      if (canOpen) {
+        await Linking.openURL(latestVersionInfo.url);
+        setIsDownloading(false);
+        return;
       }
-
-      console.log("Download started at:", new Date().toISOString());
-
-      const downloadResumable = FileSystem.createDownloadResumable(
-        latestVersionInfo.url,
-        downloadPath,
-        {},
-        downloadProgressCallback
-      );
-
-      setDownloadTask(downloadResumable);
-      const downloadResponse = await downloadResumable.downloadAsync();
-
-      if (!downloadResponse) {
-        throw new Error("Download failed - no response");
-      }
-
-      console.log(
-        "Download completed at:",
-        new Date().toISOString(),
-        "to:",
-        downloadResponse.uri
-      );
-
-      setIsDownloading(false);
-      setDownloadProgress(0);
-
-      // Open the downloaded APK
-      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-        data: downloadResponse.uri,
-        flags: IntentLauncher.FLAG_GRANT_READ_URI_PERMISSION,
-        type: "application/vnd.android.package-archive",
-      });
     } catch (error) {
-      console.error(
-        `Download attempt ${attempt} failed at ${new Date().toISOString()}:`,
-        error
-      );
-
+      console.error("Download failed:", error);
       setIsDownloading(false);
-      setDownloadProgress(0);
-
-      // Retry logic
-      if (attempt < maxAttempts) {
-        console.log(`Retrying (${attempt + 1}/${maxAttempts})...`);
-        return handleUpdate(attempt + 1, maxAttempts);
-      }
 
       Alert.alert(
         t("Download Error"),
         t(
-          `Failed after ${attempt} attempts: ${error.message}. Please try again.`
+          "Failed to open download link. Please try again or download manually."
         ),
         [
           { text: t("Try Again"), onPress: () => handleUpdate() },
+          {
+            text: t("Download in Browser"),
+            onPress: () => {
+              Linking.openURL(latestVersionInfo.url);
+              onClose();
+            },
+          },
           { text: t("Cancel"), style: "cancel" },
         ]
       );
     }
   };
 
-  const cancelDownload = async () => {
-    if (downloadTask) {
-      try {
-        await downloadTask.cancelAsync();
-        console.log("Download cancelled");
-        setIsDownloading(false);
-        setDownloadProgress(0);
-      } catch (error) {
-        console.error("Error cancelling download:", error);
-      }
-    }
-  };
-
   const handleClose = () => {
-    if (isDownloading) {
-      cancelDownload();
-    }
-
     if (Platform.OS === "ios") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -171,7 +108,7 @@ const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
     if (!date) return "N/A";
     return date.toLocaleDateString(undefined, {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
   };
@@ -198,24 +135,18 @@ const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
           ]}
         >
           <View style={styles.updateIconContainer}>
-            {isDownloading ? (
-              <Feather name="download-cloud" size={32} color={colors.primary} />
-            ) : (
-              <Feather name="download" size={32} color={colors.primary} />
-            )}
+            <Feather name="download" size={32} color={colors.primary} />
           </View>
 
           <Text style={styles.title}>
-            {isDownloading ? t("Downloading Update") : t("Update Available")}
+            {isDownloading ? t("Opening Download") : t("Update Available")}
           </Text>
 
           <View style={styles.divider} />
 
           {!isDownloading && (
             <Text style={styles.message}>
-              {t(
-                "A new version of the app is available with the latest features and improvements."
-              )}
+              {t("A new version of the app is available.")}
             </Text>
           )}
 
@@ -242,33 +173,32 @@ const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
           {!isDownloading && latestVersionInfo?.description && (
             <View style={styles.descriptionContainer}>
               <Text style={styles.descriptionTitle}>{t("What's New")}</Text>
-              <Text style={styles.descriptionText} numberOfLines={5}>
-                {latestVersionInfo.description}
-              </Text>
+              <ScrollView
+                style={styles.descriptionScroll}
+                showsVerticalScrollIndicator={true}
+              >
+                <Text style={styles.descriptionText}>
+                  {latestVersionInfo.description}
+                </Text>
+              </ScrollView>
             </View>
           )}
 
           {isDownloading && (
             <View style={styles.progressContainer}>
               <Text style={styles.progressText}>
-                {`${t("Downloading")}: ${Math.round(downloadProgress * 100)}%`}
+                {t("Opening download in your browser...")}
               </Text>
-              <View style={styles.progressBarBackground}>
-                <View
-                  style={[
-                    styles.progressBar,
-                    { width: `${downloadProgress * 100}%` },
-                  ]}
-                />
+              <View style={styles.loadingIndicator}>
+                <Feather name="loader" size={24} color={colors.primary} />
               </View>
-              <Text style={styles.progressSubtext}>
-                {t("Please wait while the update downloads")}
-              </Text>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={cancelDownload}
+                onPress={() => {
+                  setIsDownloading(false);
+                }}
               >
-                <Text style={styles.cancelButtonText}>{t("Cancel")}</Text>
+                <Text style={styles.cancelButtonText}>{t("cancel")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -276,53 +206,80 @@ const UpdateModal = ({ visible, onClose, currentVersion, versionData }) => {
           {!isDownloading && (
             <View style={styles.buttonContainer}>
               {isExpired ? (
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonPrimary]}
-                  onPress={() => BackHandler.exitApp()}
-                  accessible={true}
-                  accessibilityLabel={t("Close")}
-                  accessibilityHint={t("Closes the app as update is mandatory")}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonPrimaryText}>{t("Close")}</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonSecondary]}
-                  onPress={handleClose}
-                  accessible={true}
-                  accessibilityLabel={t("Later")}
-                  accessibilityHint={t(
-                    "Closes the update modal and postpones the update"
-                  )}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonSecondaryText}>{t("Later")}</Text>
-                </TouchableOpacity>
-              )}
+                <>
+                  {/* Render the alternative button in place of "Later" */}
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonAlternative]}
+                    onPress={() => BackHandler.exitApp()}
+                    accessible={true}
+                    accessibilityLabel={t("Close")}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonAlternativeText}>
+                      {t("Close")}
+                    </Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.button, styles.buttonPrimary]}
-                onPress={() => handleUpdate()}
-                accessible={true}
-                accessibilityLabel={t("Update Now")}
-                accessibilityHint={t("Downloads and installs the update")}
-                activeOpacity={0.7}
-                disabled={isDownloading}
-              >
-                <Text style={styles.buttonPrimaryText}>{t("Update Now")}</Text>
-                <Feather
-                  name="external-link"
-                  size={16}
-                  color="white"
-                  style={styles.buttonIcon}
-                />
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonPrimary]}
+                    onPress={handleUpdate}
+                    accessible={true}
+                    accessibilityLabel={t("Update Now")}
+                    accessibilityHint={t("Downloads and installs the update")}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonPrimaryText}>
+                      {t("Update Now")}
+                    </Text>
+                    <Feather
+                      name="external-link"
+                      size={16}
+                      color="white"
+                      style={styles.buttonIcon}
+                    />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonSecondary]}
+                    onPress={handleClose}
+                    accessible={true}
+                    accessibilityLabel={t("Later")}
+                    accessibilityHint={t(
+                      "Closes the update modal and postpones the update"
+                    )}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonSecondaryText}>{t("Later")}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.button, styles.buttonPrimary]}
+                    onPress={handleUpdate}
+                    accessible={true}
+                    accessibilityLabel={t("Update Now")}
+                    accessibilityHint={t("Downloads and installs the update")}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonPrimaryText}>
+                      {t("Update Now")}
+                    </Text>
+                    <Feather
+                      name="external-link"
+                      size={16}
+                      color="white"
+                      style={styles.buttonIcon}
+                    />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
+
           {expiryDate && (
             <Text style={styles.expiryDate}>
-              {t("Expires")}: {formatExpiryDate(expiryDate)}
+              {t("Current version expires")}: {formatExpiryDate(expiryDate)}
             </Text>
           )}
         </View>
@@ -408,7 +365,7 @@ const styles = StyleSheet.create({
   expiryDate: {
     fontSize: 12,
     color: "#888",
-    marginTop: 4,
+    marginTop: 10,
   },
   latestVersion: {
     color: colors.primary,
@@ -425,11 +382,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
+  descriptionScroll: {
+    maxHeight: 120,
+    width: "100%",
+  },
   descriptionText: {
     fontSize: 14,
     color: "#555",
     lineHeight: 20,
     textAlign: "center",
+    paddingBottom: 8,
   },
   progressContainer: {
     width: "100%",
@@ -440,28 +402,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#333",
-    marginBottom: 10,
+    marginBottom: 16,
   },
-  progressSubtext: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 10,
-    textAlign: "center",
-  },
-  progressBarBackground: {
-    width: "100%",
-    height: 12,
-    backgroundColor: "#eee",
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: 12,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
+  loadingIndicator: {
+    marginBottom: 16,
   },
   cancelButton: {
-    marginTop: 16,
+    marginTop: 8,
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
@@ -502,10 +449,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
-  buttonDisabled: {
-    backgroundColor: "#999",
-    shadowColor: "#999",
-  },
   buttonPrimaryText: {
     color: "white",
     fontWeight: "bold",
@@ -518,6 +461,9 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginLeft: 6,
+  },
+  buttonAlternative: {
+    borderWidth: 1,
   },
 });
 

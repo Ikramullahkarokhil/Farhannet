@@ -1,6 +1,4 @@
-"use client";
-
-import { useEffect, useLayoutEffect, useState, useCallback, memo } from "react";
+import { useEffect, useLayoutEffect, useState, memo } from "react";
 import { StyleSheet, Text, View, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useNavigation } from "expo-router";
@@ -8,20 +6,30 @@ import { useTranslation } from "react-i18next";
 import apiStore from "../../../components/api/apiStore";
 import colors from "../../../components/theme";
 
-// Optimized PackageItem with memoization but without animations
 const PackageItem = memo(
   ({ packages }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+
+    const getLocalizedPackageName = () => {
+      if (i18n.language === "pa" && packages.title_ps) {
+        return packages.title_ps;
+      } else if (i18n.language === "da" && packages.title_dr) {
+        return packages.title_dr;
+      } else {
+        return packages.title;
+      }
+    };
 
     return (
       <View style={styles.card}>
         <View style={styles.header}>
           <Text style={styles.name} numberOfLines={2}>
-            {packages.title}
+            {getLocalizedPackageName()}
           </Text>
           <Text style={styles.price}>
-            {packages.price} <Text style={styles.month}>{t("month")}</Text>
+            {packages.price} <Text style={styles.month}></Text>
           </Text>
+          <Text style={{ color: colors.background }}>{t("month")}</Text>
         </View>
 
         <View style={styles.cardContent}>

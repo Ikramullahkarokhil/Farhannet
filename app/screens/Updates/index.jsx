@@ -1,5 +1,3 @@
-"use client";
-
 import {
   StyleSheet,
   Text,
@@ -11,7 +9,7 @@ import {
   TouchableOpacity,
   Platform,
 } from "react-native";
-import { useLayoutEffect, useState, memo } from "react";
+import { useLayoutEffect, useState, memo, useMemo } from "react";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -26,38 +24,73 @@ const formatDate = (dateString) => {
 // Memoized Update Card Component without animations
 const UpdateCard = memo(({ item }) => {
   const [expanded, setExpanded] = useState(false);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
+
+  const getLocalizedUpdateTitle = (update) => {
+    if (i18n.language === "pa" && update.title_ps) {
+      return update.title_ps;
+    } else if (i18n.language === "da" && update.title_dr) {
+      return update.title_dr;
+    } else {
+      return update.title;
+    }
+  };
+
+  const getLocalizedUpdateDescription = (update) => {
+    if (i18n.language === "pa" && update.description_ps) {
+      return update.description_ps;
+    } else if (i18n.language === "da" && update.description_dr) {
+      return update.description_dr;
+    } else {
+      return update.description;
+    }
+  };
+
+  const localizedDescription = getLocalizedUpdateDescription(item);
 
   // Truncate description if it's too long and not expanded
   const MAX_DESCRIPTION_LENGTH = 100;
-  const isLongDescription = item.description.length > MAX_DESCRIPTION_LENGTH;
+  const isLongDescription =
+    localizedDescription.length > MAX_DESCRIPTION_LENGTH;
   const displayDescription =
     !expanded && isLongDescription
-      ? `${item.description.substring(0, MAX_DESCRIPTION_LENGTH)}...`
-      : item.description;
+      ? `${localizedDescription.substring(0, MAX_DESCRIPTION_LENGTH)}...`
+      : localizedDescription;
 
   return (
-    <View style={styles.updateCard}>
-      <View style={styles.cardContent}>
-        <View style={styles.dateContainer}>
+    <View style={[styles.updateCard, isRTL && styles.updateCardRTL]}>
+      <View style={[styles.cardContent, isRTL && styles.cardContentRTL]}>
+        <View style={[styles.dateContainer, isRTL && styles.dateContainerRTL]}>
           <View
-            style={[styles.iconContainer, { backgroundColor: colors.primary }]}
+            style={[
+              styles.iconContainer,
+              { backgroundColor: colors.primary },
+              isRTL && styles.iconContainerRTL,
+            ]}
           >
             <Ionicons name="notifications" size={18} color="#FFFFFF" />
           </View>
           <Text style={styles.date}>{formatDate(item.date)}</Text>
         </View>
 
-        <Text style={styles.title}>{item.title}</Text>
+        <Text style={[styles.title, isRTL && styles.textRTL]}>
+          {getLocalizedUpdateTitle(item)}
+        </Text>
 
-        <Text style={styles.description}>{displayDescription}</Text>
+        <Text style={[styles.description, isRTL && styles.textRTL]}>
+          {displayDescription}
+        </Text>
 
         {isLongDescription && (
           <TouchableOpacity
             onPress={() => setExpanded(!expanded)}
-            style={styles.readMoreButton}
+            style={[styles.readMoreButton, isRTL && styles.readMoreButtonRTL]}
           >
-            <Text style={styles.readMoreText}>
+            <Text style={[styles.readMoreText, isRTL && styles.textRTL]}>
               {expanded ? t("read-less") : t("read-more")}
             </Text>
           </TouchableOpacity>
@@ -65,11 +98,22 @@ const UpdateCard = memo(({ item }) => {
 
         {item.link && (
           <Pressable
-            style={[styles.linkButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.linkButton,
+              { backgroundColor: colors.primary },
+              isRTL && styles.linkButtonRTL,
+            ]}
             onPress={() => Linking.openURL(item.link)}
           >
-            <Text style={styles.linkText}>{t("learn-more")}</Text>
-            <Feather name="external-link" size={16} color="#FFFFFF" />
+            <Text style={[styles.linkText, isRTL && styles.textRTL]}>
+              {t("learn-more")}
+            </Text>
+            <Feather
+              name="external-link"
+              size={16}
+              color="#FFFFFF"
+              style={isRTL ? { marginRight: 8 } : { marginLeft: 8 }}
+            />
           </Pressable>
         )}
       </View>
@@ -79,9 +123,13 @@ const UpdateCard = memo(({ item }) => {
 
 const Index = () => {
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { updates, fetchUpdates } = apiStore();
   const [refreshing, setRefreshing] = useState(false);
+
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -114,7 +162,7 @@ const Index = () => {
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={5}
-        removeClippedSubviews={Platform.OS === "android"}
+        removeClippedSubviews={true}
       />
     </View>
   );
@@ -161,17 +209,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  updateCardRTL: {
+    alignItems: "flex-end",
+  },
   accentBar: {
     height: 6,
     width: "100%",
   },
   cardContent: {
     padding: 20,
+    width: "100%",
+  },
+  cardContentRTL: {
+    alignItems: "flex-end",
   },
   dateContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    alignSelf: "flex-start",
+  },
+  dateContainerRTL: {
+    flexDirection: "row-reverse",
+    alignSelf: "flex-end",
   },
   iconContainer: {
     width: 36,
@@ -180,6 +240,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+  },
+  iconContainerRTL: {
+    marginRight: 0,
+    marginLeft: 12,
   },
   date: {
     fontSize: 14,
@@ -192,15 +256,25 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 12,
     lineHeight: 28,
+    width: "100%",
   },
   description: {
     fontSize: 16,
     color: colors.textMuted,
     lineHeight: 24,
     marginBottom: 10,
+    width: "100%",
+  },
+  textRTL: {
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   readMoreButton: {
     marginBottom: 15,
+    alignSelf: "flex-start",
+  },
+  readMoreButtonRTL: {
+    alignSelf: "flex-end",
   },
   readMoreText: {
     color: colors.primary,
@@ -214,6 +288,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 16,
+  },
+  linkButtonRTL: {
+    alignSelf: "flex-end",
+    flexDirection: "row-reverse",
   },
   linkText: {
     fontSize: 14,

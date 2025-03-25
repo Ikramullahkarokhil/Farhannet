@@ -197,7 +197,7 @@ const Index = () => {
   const isWarning =
     activePackage && activePackage.status !== "Expire" && daysLeft <= 7;
 
-  const getTitle = useCallback(
+  const getPackagesCategorieTitle = useCallback(
     (category) => {
       const lang = i18n.language;
       console.log(category);
@@ -206,8 +206,19 @@ const Index = () => {
       if (lang === "da" && category.title_dr) return category.title_dr;
       return category.title;
     },
-    [i18n.language]
+    [i18n.language, categories]
   );
+
+  const getLocalizedPackageName = useCallback(() => {
+    const lang = i18n.language;
+    if (lang === "pa" && activePackage.package_ps) {
+      return activePackage.package_ps;
+    } else if (lang === "da" && activePackage.package_dr) {
+      return activePackage.package_dr;
+    } else {
+      return activePackage.package;
+    }
+  }, [i18n.language, activePackage]);
 
   return (
     <View style={styles.container}>
@@ -260,7 +271,7 @@ const Index = () => {
                         style={[styles.packageName, isRTL && styles.rtlText]}
                         numberOfLines={2}
                       >
-                        {activePackage.package}
+                        {getLocalizedPackageName()}
                       </Text>
                       <Text
                         style={[
@@ -354,7 +365,7 @@ const Index = () => {
                   pathname: "screens/Pakages",
                   params: {
                     categoryId: category.id,
-                    catName: getTitle(category),
+                    catName: getPackagesCategorieTitle(category),
                   },
                 });
               } else {

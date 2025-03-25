@@ -12,14 +12,24 @@ import * as SplashScreen from "expo-splash-screen";
 import { setBackgroundColorAsync } from "expo-navigation-bar";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import i18next from "../locales/languageConfig";
-import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 import apiStore from "../components/api/apiStore";
 import colors from "../components/theme";
 import Constants from "expo-constants";
 import { checkForUpdate } from "../components/utils/VersionUtils";
 import UpdateModal from "../components/ui/UpdateModal";
+// Import notification service functions
+import {
+  registerForPushNotificationsAsync,
+  registerBackgroundTask,
+  unregisterBackgroundTask,
+  initializeNotificationChannels,
+  addNotificationListeners,
+  removeNotificationListeners,
+  storeActivePackage,
+  checkAndShowNotification,
+} from "../notification-service";
 
-// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 const Layout = () => {
@@ -27,12 +37,13 @@ const Layout = () => {
   const { i18n } = useTranslation();
   const [appIsReady, setAppIsReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const notificationListener = useRef();
-  const responseListener = useRef();
+  const notificationListeners = useRef(null);
   const appInitialized = useRef(false);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
   const [latestVersion, setLatestVersion] = useState(null);
   const [versionData, setVersionData] = useState([]);
+  const [expoPushToken, setExpoPushToken] = useState("");
+  const notificationsInitialized = useRef(false);
 
   const currentVersion = Constants.expoConfig?.version || "1.0.0";
 
@@ -42,9 +53,91 @@ const Layout = () => {
     fetchCustomerComplaints,
     fetchUpdates,
     fetchAppVersions,
+    activePackage,
     user,
   } = apiStore();
 
+  // Initialize notification system
+  useEffect(() => {
+    if (notificationsInitialized.current) return;
+
+    const initNotifications = async () => {
+      try {
+        // Initialize notification channels
+        await initializeNotificationChannels();
+
+        // Register for push notifications
+        const token = await registerForPushNotificationsAsync();
+        if (token) setExpoPushToken(token);
+
+        // Register background task
+        await registerBackgroundTask();
+
+        notificationsInitialized.current = true;
+      } catch (error) {
+        console.error("Error initializing notifications:", error);
+      }
+    };
+
+    initNotifications();
+
+    return () => {
+      unregisterBackgroundTask();
+    };
+  }, []);
+
+  // Setup notification listeners
+  useEffect(() => {
+    // Define handlers
+    const handleNotificationReceived = (notification) => {
+      console.log("Notification received:", notification);
+    };
+
+    const handleNotificationResponse = (response) => {
+      const data = response.notification.request.content.data;
+      console.log("Notification response received:", data);
+
+      if (data.type === "expiry") {
+        // Navigate to package details or renewal page
+        router.push("/(drawer)/packages");
+      }
+    };
+
+    // Add listeners
+    notificationListeners.current = addNotificationListeners(
+      handleNotificationReceived,
+      handleNotificationResponse
+    );
+
+    return () => {
+      // Remove listeners on cleanup
+      if (notificationListeners.current) {
+        removeNotificationListeners(notificationListeners.current);
+      }
+    };
+  }, [router]);
+
+  // Handle active package changes for notifications
+  useEffect(() => {
+    const handlePackageUpdate = async () => {
+      if (isLoggedIn && activePackage && activePackage.status === "Active") {
+        // Store the active package for background tasks
+        await storeActivePackage(activePackage);
+
+        // Check and show notification if needed
+        await checkAndShowNotification();
+      }
+    };
+
+    // Use a small delay to prevent multiple executions
+    const timeoutId = setTimeout(() => {
+      handlePackageUpdate();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [activePackage, isLoggedIn]);
+
+  // Fetch data
   useEffect(() => {
     const getData = async () => {
       try {
@@ -84,31 +177,6 @@ const Layout = () => {
     fetchUpdates,
     user,
   ]);
-
-  // Setup notification handlers
-  useEffect(() => {
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log("Notification received:", notification);
-      });
-
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content.data; // Fix typo here
-        console.log("Notification response received:", data);
-
-        if (data.updateId) {
-          // Handle navigation if needed
-        }
-      });
-
-    return () => {
-      Notifications.removeNotificationSubscription(
-        notificationListener.current
-      );
-      Notifications.removeNotificationSubscription(responseListener.current);
-    };
-  }, []);
 
   // App initialization logic
   useEffect(() => {

@@ -1,4 +1,6 @@
-import React, {
+"use client";
+
+import {
   useLayoutEffect,
   useState,
   useRef,
@@ -12,7 +14,6 @@ import {
   Text,
   View,
   TextInput,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,7 @@ import {
   RefreshControl,
   Animated,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -27,7 +29,7 @@ import colors from "../../../components/theme";
 import apiStore from "../../../components/api/apiStore";
 import { Image } from "react-native";
 
-// Helper function to get status color
+// Helper function to get status color - moved outside component for better performance
 const getStatusColor = (status) => {
   switch (status) {
     case "Pending":
@@ -49,19 +51,63 @@ const getStatusColor = (status) => {
 
 // Message component: memoized for performance
 const Message = memo(({ item, index, messages }) => {
-  const isSequential =
-    index > 0 &&
-    messages[index - 1].isUser === item.isUser &&
-    !item.isComplaint;
+  // Pre-compute values to avoid recalculations in render
+  const isSequential = useMemo(
+    () =>
+      index > 0 &&
+      messages[index - 1].isUser === item.isUser &&
+      !item.isComplaint,
+    [index, item.isUser, item.isComplaint, messages]
+  );
 
-  const statusColor = item.status
-    ? getStatusColor(item.status)
-    : colors.primary;
+  const statusColor = useMemo(
+    () => (item.status ? getStatusColor(item.status) : colors.primary),
+    [item.status]
+  );
 
-  const isFirstComplaintMessage =
-    item.isComplaint &&
-    item.isUser &&
-    (index === 0 || messages[index - 1]?.date !== item.date);
+  const isFirstComplaintMessage = useMemo(
+    () =>
+      item.isComplaint &&
+      item.isUser &&
+      (index === 0 || messages[index - 1]?.date !== item.date),
+    [item.isComplaint, item.isUser, index, item.date, messages]
+  );
+
+  const bubbleStyle = useMemo(
+    () => [
+      styles.messageBubble,
+      item.isUser ? styles.userBubble : styles.ispBubble,
+      isSequential
+        ? item.isUser
+          ? styles.sequentialUserBubble
+          : styles.sequentialIspBubble
+        : {},
+      !item.isUser && { backgroundColor: statusColor, borderWidth: 0 },
+    ],
+    [item.isUser, isSequential, statusColor]
+  );
+
+  const textStyle = useMemo(
+    () => [
+      styles.messageText,
+      item.isUser ? styles.userText : styles.ispText,
+      !item.isUser && item.status && item.status !== "Pending"
+        ? { color: "white" }
+        : {},
+    ],
+    [item.isUser, item.status]
+  );
+
+  const timestampStyle = useMemo(
+    () => [
+      styles.timestamp,
+      item.isUser ? styles.userTimestamp : styles.ispTimestamp,
+      !item.isUser && item.status && item.status !== "Pending"
+        ? { color: "white" }
+        : {},
+    ],
+    [item.isUser, item.status]
+  );
 
   return (
     <>
@@ -80,29 +126,8 @@ const Message = memo(({ item, index, messages }) => {
             />
           </View>
         )}
-        <View
-          style={[
-            styles.messageBubble,
-            item.isUser ? styles.userBubble : styles.ispBubble,
-            isSequential
-              ? item.isUser
-                ? styles.sequentialUserBubble
-                : styles.sequentialIspBubble
-              : {},
-            !item.isUser && { backgroundColor: statusColor, borderWidth: 0 },
-          ]}
-        >
-          <Text
-            style={[
-              styles.messageText,
-              item.isUser ? styles.userText : styles.ispText,
-              !item.isUser && item.status && item.status !== "Pending"
-                ? { color: "white" }
-                : {},
-            ]}
-          >
-            {item.text}
-          </Text>
+        <View style={bubbleStyle}>
+          <Text style={textStyle}>{item.text}</Text>
 
           {item.status === "Posting" && !item.hidePostingIndicator && (
             <View
@@ -125,17 +150,7 @@ const Message = memo(({ item, index, messages }) => {
             </View>
           )}
 
-          <Text
-            style={[
-              styles.timestamp,
-              item.isUser ? styles.userTimestamp : styles.ispTimestamp,
-              !item.isUser && item.status && item.status !== "Pending"
-                ? { color: "white" }
-                : {},
-            ]}
-          >
-            {item.timestamp}
-          </Text>
+          <Text style={timestampStyle}>{item.timestamp}</Text>
         </View>
       </View>
     </>
@@ -159,14 +174,37 @@ const EmptyState = memo(({ t }) => {
   );
 });
 
+// Extracted DateHeader component for better organization
+const FloatingDateHeader = memo(({ opacity, y, date }) => (
+  <Animated.View
+    style={[
+      styles.floatingDateHeader,
+      {
+        opacity,
+        transform: [{ translateY: y }],
+      },
+    ]}
+    pointerEvents="none"
+  >
+    <Text style={styles.floatingDateText}>{date}</Text>
+  </Animated.View>
+));
+
+// Extracted ScrollToBottomButton component
+const ScrollToBottomButton = memo(({ onPress }) => (
+  <Pressable style={styles.scrollToBottomButton} onPress={onPress}>
+    <Ionicons name="chevron-down" size={24} color={colors.background} />
+  </Pressable>
+));
+
 const Index = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [feedback, setFeedback] = useState("");
   const [messages, setMessages] = useState([]);
   const [tempMessages, setTempMessages] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigation = useNavigation();
-  const flatListRef = useRef(null);
+  const flashListRef = useRef(null);
   const inputRef = useRef(null);
   const { complaints, addComplain, user, fetchCustomerComplaints } = apiStore();
 
@@ -185,61 +223,89 @@ const Index = () => {
   const dateHeaderOpacity = useRef(new Animated.Value(0)).current;
   const dateHeaderY = useRef(new Animated.Value(-40)).current;
 
+  // Memoize RTL check to avoid recalculation
+  const isRTL = useMemo(() => {
+    return i18n.language === "pa" || i18n.language === "da";
+  }, [i18n.language]);
+
   // Show/hide date header with animation
-  const animateDateHeader = (show) => {
-    Animated.parallel([
-      Animated.timing(dateHeaderOpacity, {
-        toValue: show ? 1 : 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(dateHeaderY, {
-        toValue: show ? 0 : -40,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    setShowDateHeader(show);
-  };
-
-  const handleScroll = (event) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const height = event.nativeEvent.layoutMeasurement.height;
-    const totalContentHeight = event.nativeEvent.contentSize.height;
-    const distanceFromBottom = totalContentHeight - height - offsetY;
-
-    // Show the scroll-to-bottom button if user is more than 500 pixels away
-    setShowScrollToBottom(distanceFromBottom > 500);
-
-    // Find the date of the message currently at the top of the visible area
-    if (combinedMessages.length > 0 && flatListRef.current) {
-      const visibleIndex = Math.floor(offsetY / 80); // Approximate height of a message
-      const safeIndex = Math.min(
-        Math.max(0, visibleIndex),
-        combinedMessages.length - 1
-      );
-
-      const visibleDate = combinedMessages[safeIndex]?.date;
-
-      if (visibleDate && visibleDate !== currentDate) {
-        setCurrentDate(visibleDate);
-        if (!showDateHeader) {
-          animateDateHeader(true);
-        }
-      }
-    }
-
-    // Hide date header after 2 seconds of no scrolling
-    if (showDateHeader) {
-      clearTimeout(dateHeaderTimeout.current);
-      dateHeaderTimeout.current = setTimeout(() => {
-        animateDateHeader(false);
-      }, 2000);
-    }
-  };
+  const animateDateHeader = useCallback(
+    (show) => {
+      Animated.parallel([
+        Animated.timing(dateHeaderOpacity, {
+          toValue: show ? 1 : 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dateHeaderY, {
+          toValue: show ? 0 : -40,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      setShowDateHeader(show);
+    },
+    [dateHeaderOpacity, dateHeaderY]
+  );
 
   // Timeout ref for hiding date header
   const dateHeaderTimeout = useRef(null);
+
+  // Memoize combined messages to avoid unnecessary recalculations
+  const combinedMessages = useMemo(() => {
+    const sortedTempMessages = [...tempMessages].sort(
+      (a, b) => a.createdAt - b.createdAt
+    );
+    return [...messages, ...sortedTempMessages];
+  }, [messages, tempMessages]);
+
+  // Estimate item size for FlashList
+  const estimatedItemSize = useMemo(() => 80, []);
+
+  const handleScroll = useCallback(
+    (event) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      const height = event.nativeEvent.layoutMeasurement.height;
+      const totalContentHeight = event.nativeEvent.contentSize.height;
+      const distanceFromBottom = totalContentHeight - height - offsetY;
+
+      // Show the scroll-to-bottom button if user is more than 500 pixels away
+      setShowScrollToBottom(distanceFromBottom > 500);
+
+      // Find the date of the message currently at the top of the visible area
+      if (combinedMessages.length > 0 && flashListRef.current) {
+        const visibleIndex = Math.floor(offsetY / estimatedItemSize);
+        const safeIndex = Math.min(
+          Math.max(0, visibleIndex),
+          combinedMessages.length - 1
+        );
+
+        const visibleDate = combinedMessages[safeIndex]?.date;
+
+        if (visibleDate && visibleDate !== currentDate) {
+          setCurrentDate(visibleDate);
+          if (!showDateHeader) {
+            animateDateHeader(true);
+          }
+        }
+      }
+
+      // Hide date header after 2 seconds of no scrolling
+      if (showDateHeader) {
+        clearTimeout(dateHeaderTimeout.current);
+        dateHeaderTimeout.current = setTimeout(() => {
+          animateDateHeader(false);
+        }, 2000);
+      }
+    },
+    [
+      combinedMessages,
+      currentDate,
+      showDateHeader,
+      animateDateHeader,
+      estimatedItemSize,
+    ]
+  );
 
   useEffect(() => {
     const refreshPage = async () => {
@@ -357,30 +423,26 @@ const Index = () => {
     setIsReady(true);
   }, [complaints, getStatusMessage]);
 
-  const combinedMessages = useMemo(() => {
-    const sortedTempMessages = [...tempMessages].sort(
-      (a, b) => a.createdAt - b.createdAt
-    );
-    return [...messages, ...sortedTempMessages];
-  }, [messages, tempMessages]);
-
   // Memoize scrollToBottom for stability
   const scrollToBottom = useCallback(
     (animated = true) => {
-      if (flatListRef.current && contentHeight > listHeight) {
-        const offset = contentHeight - listHeight;
-        flatListRef.current.scrollToOffset({ offset, animated });
+      if (
+        flashListRef.current &&
+        contentHeight > listHeight &&
+        combinedMessages.length > 0
+      ) {
+        flashListRef.current.scrollToEnd({ animated });
       }
     },
-    [contentHeight, listHeight]
+    [contentHeight, listHeight, combinedMessages.length]
   );
 
   // Scroll to bottom when new messages are added
   useEffect(() => {
-    if (combinedMessages.length > 0) {
+    if (combinedMessages.length > 0 && !initialRender) {
       scrollToBottom(false);
     }
-  }, [combinedMessages.length, scrollToBottom]);
+  }, [combinedMessages.length, scrollToBottom, initialRender]);
 
   // Handle new message submission
   const submitFeedback = useCallback(async () => {
@@ -505,20 +567,29 @@ const Index = () => {
 
   const keyExtractor = useCallback((item) => item.id, []);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchCustomerComplaints(user.id);
     setRefreshing(false);
-  };
+  }, [fetchCustomerComplaints, user.id]);
 
-  // This is the key to starting at the bottom - we use initialScrollIndex
-  const getItemLayout = useCallback(
-    (data, index) => ({
-      length: 80, // approximate height of a message
-      offset: 80 * index,
-      index,
-    }),
-    []
+  // Input container styles memoized for performance
+  const inputContainerStyle = useMemo(
+    () => [
+      styles.inputContainer,
+      { flexDirection: isRTL ? "row-reverse" : "row" },
+    ],
+    [isRTL]
+  );
+
+  // Submit button style function memoized
+  const getSubmitButtonStyle = useCallback(
+    ({ pressed }) => [
+      styles.submitButton,
+      (!feedback.trim() || isSubmitting) && styles.submitButtonDisabled,
+      pressed && styles.submitButtonPressed,
+    ],
+    [feedback, isSubmitting]
   );
 
   return (
@@ -533,54 +604,40 @@ const Index = () => {
         ) : (
           <>
             {/* Floating date header */}
-            <Animated.View
-              style={[
-                styles.floatingDateHeader,
-                {
-                  opacity: dateHeaderOpacity,
-                  transform: [{ translateY: dateHeaderY }],
-                },
-              ]}
-              pointerEvents="none"
-            >
-              <Text style={styles.floatingDateText}>{currentDate}</Text>
-            </Animated.View>
+            <FloatingDateHeader
+              opacity={dateHeaderOpacity}
+              y={dateHeaderY}
+              date={currentDate}
+            />
 
             {isReady && (
-              <FlatList
-                ref={flatListRef}
+              <FlashList
+                ref={flashListRef}
                 data={combinedMessages}
                 renderItem={renderMessage}
                 keyExtractor={keyExtractor}
                 contentContainerStyle={styles.messagesContainer}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                initialNumToRender={20}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-                removeClippedSubviews={Platform.OS === "android"}
+                estimatedItemSize={estimatedItemSize}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
-                getItemLayout={getItemLayout}
-                // This is crucial - we initialize the list at the end
-                initialScrollIndex={
-                  initialRender ? combinedMessages.length - 1 : undefined
-                }
-                onScrollToIndexFailed={(info) => {
-                  // If scrolling to index fails, try again with a delay
-                  setTimeout(() => {
-                    if (flatListRef.current && combinedMessages.length > 0) {
-                      flatListRef.current.scrollToIndex({
-                        index: combinedMessages.length - 1,
-                        animated: false,
-                      });
-                    }
-                  }, 100);
+                // FlashList performance optimizations
+                optimizeItemLayout
+                drawDistance={400}
+                overrideItemLayout={(layout, item) => {
+                  // Provide more accurate height estimates for different message types
+                  if (item.text && item.text.length > 100) {
+                    layout.size = estimatedItemSize * 1.5;
+                  } else {
+                    layout.size = estimatedItemSize;
+                  }
                 }}
                 onContentSizeChange={(w, h) => {
                   setContentHeight(h);
-                  // After first render, we don't need initialScrollIndex anymore
-                  if (initialRender) {
+                  // After first render, scroll to end and update initialRender state
+                  if (initialRender && combinedMessages.length > 0) {
+                    flashListRef.current?.scrollToEnd({ animated: false });
                     setInitialRender(false);
                   }
                 }}
@@ -599,21 +656,13 @@ const Index = () => {
             )}
 
             {combinedMessages.length > 10 && showScrollToBottom && (
-              <Pressable
-                style={styles.scrollToBottomButton}
-                onPress={() => scrollToBottom()}
-              >
-                <Ionicons
-                  name="chevron-down"
-                  size={24}
-                  color={colors.background}
-                />
-              </Pressable>
+              <ScrollToBottomButton onPress={() => scrollToBottom()} />
             )}
           </>
         )}
       </KeyboardAvoidingView>
-      <View style={styles.inputContainer}>
+
+      <View style={inputContainerStyle}>
         <TextInput
           ref={inputRef}
           style={styles.input}
@@ -627,11 +676,7 @@ const Index = () => {
           accessibilityLabel="Feedback input"
         />
         <Pressable
-          style={({ pressed }) => [
-            styles.submitButton,
-            (!feedback.trim() || isSubmitting) && styles.submitButtonDisabled,
-            pressed && styles.submitButtonPressed,
-          ]}
+          style={getSubmitButtonStyle}
           onPress={submitFeedback}
           disabled={!feedback.trim() || isSubmitting}
           android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true }}
@@ -866,6 +911,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
+    marginHorizontal: 5,
   },
   submitButtonDisabled: {
     backgroundColor: `${colors.primary}66`,

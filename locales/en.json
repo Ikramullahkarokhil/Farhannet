@@ -23,7 +23,7 @@
   "updates": "Updates",
   "feedback": "Feedback",
   "available": "available",
-  "month": "month",
+  "month": "Monthly",
   "days": "days",
   "pakages": "Packages",
   "read-less": "Read less",
@@ -113,5 +113,16 @@
   "We're sending your feedback to our team...": "We're sending your feedback to our team...",
   "Failed to send your feedback. Please try again later.": "Failed to send your feedback. Please try again later.",
   "We've received your feedback and will get back to you soon.": "We've received your feedback and will get back to you soon.",
-  "Coming Soon": "Coming Soon"
+  "Coming Soon": "Coming Soon",
+  "Update Available": "Update Available",
+  "Opening Download": "Opening Download",
+  "A new version of the app is available.": "A new version of the app is available.",
+  "Current version": "Current version",
+  "Latest version": "Latest version",
+  "What's New": "What's New",
+  "Opening download in your browser...": "Opening download in your browser...",
+  "Update Now": "Update Now",
+  "Later": "Later",
+  "Current version expires": "Current version expires on",
+  "Close": "Close"
 }
