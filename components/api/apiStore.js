@@ -86,7 +86,6 @@ const apiStore = create(
             `/customer/complaint-add?customer_id=${customerId}&complain=${complain}`
           );
           set({ loading: false });
-          await get().fetchCustomerComplaints(customerId);
           return response.data;
         } catch (error) {
           const errorMessage = error.response?.data?.message || error.message;
